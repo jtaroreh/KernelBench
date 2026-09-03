@@ -55,7 +55,7 @@ class GenerationConfig(Config):
         # Inference config
         self.server_type = None
         self.model_name = None
-        self.max_tokens = None
+        self.max_tokens = 8192
         self.temperature = 0.0
         
         # Reasoning model specific parameters

@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import math
 import os
+import socket
 import json
 import urllib.request
 import urllib.error
@@ -181,7 +182,17 @@ def query_server(
         data = json.dumps(payload).encode("utf-8")
 
         models_to_try = [target_model]
-        pool = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.7-flash", "gemini-3.8-flash", "gemini-2.5-flash"]
+        pool = [
+            "gemini-3.8-flash",
+            "gemini-3.1-flash-lite",
+            "gemini-3.1-flash-lite-preview",
+            "gemini-3-flash-preview",
+            "gemini-3.5-flash-lite",
+            "gemini-3.6-flash",
+            "gemini-3.7-flash",
+            "gemini-3.5-flash",
+            "gemini-2.5-flash",
+        ]
         for m in pool:
             if m not in models_to_try:
                 models_to_try.append(m)
@@ -196,12 +207,21 @@ def query_server(
                 method="POST"
             )
             try:
-                with urllib.request.urlopen(req) as resp:
+                with urllib.request.urlopen(req, timeout=60) as resp:
                     response = json.loads(resp.read().decode("utf-8"))
                     return response["candidates"][0]["content"]["parts"][0]["text"]
+            except (TimeoutError, socket.timeout) as e:
+                last_error = e
+                continue
             except urllib.error.HTTPError as e:
                 last_error = e
                 if e.code in (429, 503):
+                    time.sleep(1.0)
+                    continue
+                raise
+            except urllib.error.URLError as e:
+                last_error = e
+                if isinstance(e.reason, (TimeoutError, socket.timeout)):
                     continue
                 raise
 
@@ -477,6 +497,14 @@ def extract_first_code(output_string: str, code_language_types: list[str]) -> st
             if code.startswith(code_type):
                 code = code[len(code_type) :].strip()
 
+        return code
+
+    unclosed_match = re.search(r"```([a-zA-Z0-9_\+\-]*)\n(.*)$", trimmed, re.DOTALL)
+    if unclosed_match:
+        code = unclosed_match.group(2).strip()
+        for code_type in code_language_types:
+            if code.startswith(code_type):
+                code = code[len(code_type) :].strip()
         return code
 
     return None
