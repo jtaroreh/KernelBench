@@ -14,6 +14,8 @@ import re
 import math
 import os
 import json
+import urllib.request
+import urllib.error
 from tqdm import tqdm
 import torch
 from importlib.resources import files, as_file
@@ -140,7 +142,72 @@ def query_server(
             return outputs[0]
         else:
             return outputs
-    
+
+    if server_type == "google":
+        api_key = os.environ.get("GEMINI_API_KEY")
+        if not api_key:
+            repo_root = Path(__file__).resolve().parents[2]
+            env_path = repo_root / ".env"
+            if env_path.exists():
+                load_dotenv(dotenv_path=env_path)
+                api_key = os.environ.get("GEMINI_API_KEY")
+                if not api_key:
+                    with open(env_path) as f:
+                        for line in f:
+                            clean_line = line.strip()
+                            if clean_line.startswith("export "):
+                                clean_line = clean_line[7:].strip()
+                            if clean_line.startswith("GEMINI_API_KEY="):
+                                api_key = clean_line.split("=", 1)[1].strip().strip('"').strip("'")
+                                break
+        if not api_key:
+            raise ValueError("GEMINI_API_KEY not found in environment or .env")
+
+        target_model = model_name
+        if not target_model or target_model == "default":
+            target_model = "gemini-3.8-flash"
+        while target_model.startswith("gemini/") or target_model.startswith("models/"):
+            if target_model.startswith("gemini/"):
+                target_model = target_model[len("gemini/"):]
+            elif target_model.startswith("models/"):
+                target_model = target_model[len("models/"):]
+        if target_model == "default":
+            target_model = "gemini-3.8-flash"
+
+        payload = {
+            "contents": [{"parts": [{"text": prompt if isinstance(prompt, str) else json.dumps(prompt)}]}],
+            "generationConfig": {"temperature": temperature, "maxOutputTokens": max_tokens}
+        }
+        data = json.dumps(payload).encode("utf-8")
+
+        models_to_try = [target_model]
+        pool = ["gemini-3.6-flash", "gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-3.7-flash", "gemini-3.8-flash", "gemini-2.5-flash"]
+        for m in pool:
+            if m not in models_to_try:
+                models_to_try.append(m)
+
+        last_error = None
+        for model in models_to_try:
+            url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
+            req = urllib.request.Request(
+                url,
+                data=data,
+                headers={"Content-Type": "application/json"},
+                method="POST"
+            )
+            try:
+                with urllib.request.urlopen(req) as resp:
+                    response = json.loads(resp.read().decode("utf-8"))
+                    return response["candidates"][0]["content"]["parts"][0]["text"]
+            except urllib.error.HTTPError as e:
+                last_error = e
+                if e.code in (429, 503):
+                    continue
+                raise
+
+        if last_error:
+            raise last_error
+
     # All other providers - use LiteLLM unified interface
     # Build messages list with system prompt first (if not already present)
     messages = []
@@ -213,9 +280,9 @@ SERVER_PRESETS = {
         "max_tokens": 4096
     },
     "google": {
-        "model_name": "gemini/gemini-2.5-flash",
+        "model_name": "gemini-3.8-flash",
         "temperature": 0.7, # need to experiment with temperature
-        "max_tokens": 16384,
+        "max_tokens": 4096,
     },
     "together": { # mostly for Llama 3.1
         "model_name": "together_ai/meta-llama/Meta-Llama-3.1-70B-Instruct-Turbo",
