@@ -1,4 +1,6 @@
 import os
+import pytest
+import torch
 
 from kernelbench.dataset import KERNEL_BENCH_PATH
 from kernelbench.eval import eval_kernel_against_ref
@@ -16,6 +18,8 @@ def run_test_kernel(problem_name,
                     kernel_filename, 
                     timing_method="cuda_event",
                     num_perf_trials=100):
+    if not torch.cuda.is_available():
+        pytest.skip("CUDA is not available, cannot run Eval")
     """
     Run a test kernel agains the reference architecture and return the result.
 
