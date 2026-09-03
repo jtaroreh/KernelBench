@@ -1,0 +1,13 @@
+{
+  "level2": {
+    "1_Conv2D_ReLU_BiasAdd.py": {
+      "mean": 14.4,
+      "std": 0.15,
+      "min": 14.1,
+      "max": 16.6,
+      "num_trials": 100,
+      "hardware": "NVIDIA L40S",
+      "device": "cuda:0"
+    }
+  }
+}

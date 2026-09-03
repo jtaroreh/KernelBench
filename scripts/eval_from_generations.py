@@ -248,6 +248,7 @@ class ModalEvaluator:
             )
 
         if not gpu_corrupted:
+            torch.cuda.synchronize(device=torch.device("cuda:0"))
             torch.cuda.empty_cache()
 
         return result
@@ -524,8 +525,19 @@ def batch_eval_modal(
                         results.append((problem_id, sample_id, fail_result))
                     else:
                         try:
-                            result = future.get()
+                            result = future.get(timeout=config.timeout)
                             results.append((problem_id, sample_id, result))
+                        except (TimeoutError, modal.exception.TimeoutError) as e:
+                            error_msg = str(e)
+                            print(f"[ERROR] Modal evaluation TIMED OUT for Problem ID: {problem_id}, Sample ID: {sample_id}: {error_msg}")
+                            fail_result = KernelExecResult(
+                                compiled=False,
+                                correctness=False,
+                                metadata={"error": error_msg},
+                                runtime=-1.0,
+                                runtime_stats={},
+                            )
+                            results.append((problem_id, sample_id, fail_result))
                         except Exception as e:
                             # OUTER CATCH: Modal infrastructure or remote execution failures
                             # - GPU attachment failures after retries
