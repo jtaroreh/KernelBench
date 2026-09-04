@@ -6,7 +6,7 @@ Specifically we task LLM to generate correct and efficient CUDA / DSL kernels fo
 [arXiv](https://arxiv.org/html/2502.10517v1) | [blog post](https://scalingintelligence.stanford.edu/blogs/kernelbench/) | [HuggingFace Dataset](https://huggingface.co/datasets/ScalingIntelligence/KernelBench) 
 
 > [!IMPORTANT]
-> ### 🚀 Level 2 Evaluation and Verified Triton Solutions (NVIDIA L40S)
+> ### Level 2 Evaluation and Verified Triton Solutions (NVIDIA L40S)
 > This repository contains empirical benchmark evaluation results and verified fused kernels for KernelBench Level 2 across all 100 compound operators.
 > All evaluations ran using Triton on NVIDIA L40S hardware via Modal cloud GPUs.
 >
