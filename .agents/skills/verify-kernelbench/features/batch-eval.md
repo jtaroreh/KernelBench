@@ -25,3 +25,7 @@ Preconditions:
 
 - Avoid running two agents pointing to the same `run_name`. Always namespace with agent IDs.
 - Watch container memory limits when compiling heavy C++ extensions simultaneously.
+- **Pre-Triage Invariant**: Never launch batch evaluations on unverified candidate kernels en masse. Every candidate kernel must pass at least Tier 1 (`--lint-only`) and Tier 2 (`--quick`) before inclusion in a batch run.
+- **Modal Concurrency Caution**: Modal imposes account-level limits on concurrent GPU containers and application creation rates. Untriaged batches can trigger dropped tasks (`Future was None`).
+- **Modal App Recovery**: When worker capacity transitions cause apps to hang in the queue, run `modal app stop -y <app_id>` to release local process handles and allow clean rescheduling.
+- **Batch Dropout Recovery**: When batch runs omit tasks due to timeouts or dropped containers, never accept `patch()` default failures without triaging individual dropped kernels via `verify_kernel.py`.

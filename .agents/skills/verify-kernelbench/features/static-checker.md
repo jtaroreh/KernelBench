@@ -9,7 +9,12 @@ The static checker scans candidate kernel source code using regex patterns and A
 - `check-pytorch-layers` blocks unauthorized use of `torch.nn` compute layers.
 - `check-stream-divergence` detects non-default CUDA streams used to evade timing synchronization.
 - `check-ast-model-new` verifies class `ModelNew` is explicitly defined.
-- `check-ast-tanh` catches nonexistent `tl.tanh` or `triton.language.tanh` attribute calls.
+- `check-ast-tanh` catches nonexistent `tl.tanh`, `tl.math.tanh`, aliased module access (`tlm.tanh`), and direct imports (`from triton.language import tanh`).
+- `check-ast-pow` catches nonexistent `tl.pow`, aliased access, and direct imports (`from triton.language import pow`).
+- `check-ast-duplicate-args` catches duplicate keyword arguments and parameters passed both positionally and by keyword (including qualified launches like `self.kernel[grid]`).
+- `check-ast-launch-arg-count` catches passing more positional arguments than the kernel defines in its signature.
+- `check-ast-nested-jit` catches nested functions anywhere inside `@triton.jit` kernels, including inside `if` or loop blocks.
+- `check-ast-host-jit-call` catches direct host invocations of `@triton.jit` functions without launch grids `[grid](...)`.
 - `check-ast-control-flow` flags unsupported `continue` or `break` statements inside `@triton.jit` / `@triton.autotune` functions.
 - `check-ast-unclamped-exp` warns when `tl.exp` arguments are not protected with `clamp` or `minimum`.
 
@@ -24,13 +29,13 @@ The static checker scans candidate kernel source code using regex patterns and A
 Preconditions:
 - `kernelbench` package is installed in virtual environment.
 
-- **Run direct python check.** Run `uv run python -c "from kernelbench.kernel_static_checker import validate_kernel_static; ok, errs, warns = validate_kernel_static(open("<path>").read(), backend="triton"); print(ok, errs); assert ok"`. Output is `True []`.
+- **Run direct python check.** Run `uv run python -c "from kernelbench.kernel_static_checker import validate_kernel_static; ok, errs, warns = validate_kernel_static(open(\"<path>\").read(), backend=\"triton\"); print(ok, errs); assert ok"`. Output is `True []`.
 - **Run AST and static lint.** Run `uv run python .agents/skills/verify-kernelbench/scripts/verify_kernel.py --lint-only --level <level> --problem-id <id> --kernel <path>`. Prints `[PASS] Static and AST checks passed cleanly.` and exits with 0 on clean kernels.
 - **Catch bypass.** Check a file containing `try: ... except: pass`. Validator returns `valid=False` with error naming try-except block.
-- **Catch Triton AST pitfalls.** Run with `--lint-only` against kernels containing `tl.tanh` or `continue`/`break` inside `@triton.jit`. Returns exit code 1 and prints specific error recommendations.
+- **Catch Triton AST pitfalls.** Run with `--lint-only` against kernels containing `tl.tanh`, `tl.math.tanh`, `tl.pow`, duplicate launch arguments, host JIT calls, or `continue`/`break` inside `@triton.jit`. Returns exit code 1 and prints specific error recommendations.
 
 ## Gotchas
 
 - Comments containing keywords can sometimes trigger false matches if not stripped; `validate_kernel_static` strips comments automatically.
 - Different backends (`cuda`, `triton`, `tilelang`) enforce different mandatory decorators or includes.
-- `tl.math.tanh` is valid in Triton AST; only `tl.tanh` and `triton.language.tanh` are flagged as nonexistent.
+- Both `tl.tanh` and `tl.math.tanh` are flagged as nonexistent errors; use the sigmoid identity `2.0 * tl.sigmoid(2.0 * x) - 1.0`.
