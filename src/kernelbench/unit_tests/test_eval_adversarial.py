@@ -1,4 +1,6 @@
 import os
+import pytest
+import torch
 
 from kernelbench.dataset import KERNEL_BENCH_PATH
 from kernelbench.eval import eval_kernel_against_ref
@@ -11,6 +13,11 @@ Through a few targeted adversarial kernels.
 Run with pytest
 pytest src/unit_tests/test_eval_adversarial.py
 """
+
+pytestmark = pytest.mark.skipif(
+    not torch.cuda.is_available(),
+    reason="CUDA is not available, cannot run Eval",
+)
 
 def run_test_kernel(problem_name, 
                     kernel_filename, 
