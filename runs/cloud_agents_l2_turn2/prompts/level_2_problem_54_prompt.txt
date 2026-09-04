@@ -1,0 +1,178 @@
+You are an expert GPU kernel engineer tasked with repairing a failing Triton kernel for Gemini 3.8 Flash.
+Problem: 54_Conv2d_Multiply_LeakyReLU_GELU
+
+The previous implementation failed during compilation, execution, or numerical verification against the reference PyTorch implementation.
+Your goal is to inspect the error, identify the root cause, and produce a fully functional, bitwise-accurate, high-performance Triton kernel implementation in `ModelNew`.
+
+### Reference PyTorch Architecture
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    Model that performs a convolution, multiplies by a learnable scalar, applies LeakyReLU, and then GELU.
+    """
+    def __init__(self, in_channels, out_channels, kernel_size, multiplier_shape):
+        super(Model, self).__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size)
+        self.multiplier = nn.Parameter(torch.randn(multiplier_shape)) 
+        self.leaky_relu = nn.LeakyReLU()
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = x * self.multiplier
+        x = self.leaky_relu(x)
+        x = torch.nn.functional.gelu(x)
+        return x
+
+batch_size = 64
+in_channels = 64
+out_channels = 64
+height, width = 256, 256
+kernel_size = 3
+multiplier_shape = (out_channels, 1, 1)
+
+def get_inputs():
+    return [torch.rand(batch_size, in_channels, height, width)]
+
+def get_init_inputs():
+    return [in_channels, out_channels, kernel_size, multiplier_shape]
+```
+
+### Previous Failing Implementation
+```python
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+@triton.jit
+def fused_post_conv_kernel(
+    x_ptr, m_ptr, out_ptr,
+    n_elements, channels, spatial_size,
+    BLOCK_SIZE: tl.constexpr
+):
+    pid = tl.program_id(0)
+    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+    mask = offsets < n_elements
+    
+    # Load x and multiplier
+    x = tl.load(x_ptr + offsets, mask=mask)
+    
+    # Calculate channel index to broadcast multiplier
+    # x is (N, C, H, W), multiplier is (C, 1, 1)
+    channel_idx = (offsets // spatial_size) % channels
+    m = tl.load(m_ptr + channel_idx, mask=channel_idx < channels, other=0.0)
+    
+    # Apply multiplier
+    x = x * m
+    
+    # LeakyReLU (alpha=0.01)
+    x = tl.where(x > 0, x, x * 0.01)
+    
+    # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+    sqrt_2_over_pi = 0.7978845608
+    x_cubed = x * x * x
+    inner = sqrt_2_over_pi * (x + 0.044715 * x_cubed)
+    gelu = 0.5 * x * (1.0 + tl.tanh(inner))
+    
+    tl.store(out_ptr + offsets, gelu, mask=mask)
+
+def triton_fused_post_conv(x: torch.Tensor, multiplier: torch.Tensor):
+    n_elements = x.numel()
+    channels = x.shape[1]
+    spatial_size = x.shape[2] * x.shape[3]
+    out = torch.empty_like(x)
+    
+    BLOCK_SIZE = 1024
+    grid = (triton.cdiv(n_elements, BLOCK_SIZE),)
+    
+    fused_post_conv_kernel[grid](
+        x, multiplier, out,
+        n_elements, channels, spatial_size,
+        BLOCK_SIZE=BLOCK_SIZE
+    )
+    return out
+
+class ModelNew(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, multiplier_shape):
+        super(ModelNew, self).__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size)
+        self.multiplier = nn.Parameter(torch.randn(multiplier_shape))
+
+    def forward(self, x):
+        x = self.conv(x)
+        # Fuse multiplication, LeakyReLU, and GELU into one kernel
+        return triton_fused_post_conv(x, self.multiplier.view(-1))
+```
+
+### Diagnostic Failure Information
+**Failure Category**: `missing_triton_attribute`
+
+**Error Type**: `triton.compiler.errors.CompilationError`
+
+**Error Message**:
+```
+at 28:28:
+
+    # Apply multiplier
+    x = x * m
+
+    # LeakyReLU (alpha=0.01)
+    x = tl.where(x > 0, x, x * 0.01)
+
+    # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))...
+```
+
+**Traceback**:
+```
+Traceback (most recent call last):
+  File "/root/src/kernelbench/eval.py", line 782, in run_and_check_correctness
+    output_new = model_new(*inputs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/tmp/tmpxc913hck.py", line 63, in forward
+    return triton_fused_post_conv(x, self.multiplier.view(-1))
+  File "/tmp/tmpxc913hck.py", line 47, in triton_fused_post_conv
+    fused_post_conv_kernel[grid](
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 374, in <lambda>
+    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 757, in run
+    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 902, in _do_compile
+    kernel = self.compile(src, target=target, options=options.__dict__)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 307, in compile
+    module = src.make_ir(target, options, codegen_fns, module_map, context)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 80, in make_ir
+    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,
+triton.compiler.errors.CompilationError: at 28:28:
+
+    # Apply multiplier
+    x = x * m
+
+    # LeakyReLU (alpha=0.01)
+    x = tl.where(x > 0, x, x * 0.01)
+
+    # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+    sqrt_2_over_pi = 0.7978845608
+    x_cubed = x * x * x
+    inner = sqrt_2_over_pi * (x + 0.044715 * x_cubed)
+    gelu = 0.5 * x * (1.0 + tl.tanh(inner))
+                            ^
+AttributeError("module 'triton.language' has no attribute 'tanh'")
+
+```
+
+### Triton Pitfall Guards & Implementation Constraints
+1. **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or a rational approximation.
+2. **Mish / GELU / Exponentials**: float32 exponentials easily overflow into NaN. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+3. **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+4. **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
+5. **Interface Preservation**: Retain the exact `ModelNew` class interface and function signature matching reference PyTorch `Model`.
+6. **Output Format**: Only output valid Python code enclosed in ```python ... ```.
+
+Please provide the corrected Python code defining `ModelNew` that fixes the error and matches the reference output.
+Output only the Python code within ```python ... ``` code block.

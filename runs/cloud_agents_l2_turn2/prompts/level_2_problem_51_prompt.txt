@@ -1,0 +1,196 @@
+You are an expert GPU kernel engineer tasked with repairing a failing Triton kernel for Gemini 3.8 Flash.
+Problem: 51_Gemm_Subtract_GlobalAvgPool_LogSumExp_GELU_ResidualAdd
+
+The previous implementation failed during compilation, execution, or numerical verification against the reference PyTorch implementation.
+Your goal is to inspect the error, identify the root cause, and produce a fully functional, bitwise-accurate, high-performance Triton kernel implementation in `ModelNew`.
+
+### Reference PyTorch Architecture
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    Model that performs a series of operations: Gemm, Subtract, GlobalAvgPool, LogSumExp, GELU, and ResidualAdd.
+    """
+    def __init__(self, in_features, out_features, bias=True):
+        super(Model, self).__init__()
+        self.gemm = nn.Linear(in_features, out_features, bias=bias)
+        self.subtract = nn.Parameter(torch.randn(out_features))
+
+    def forward(self, x):
+        original_x = x.clone().detach()
+        # Gemm
+        x = self.gemm(x)
+
+        # Subtract
+        x = x - self.subtract
+
+        # GlobalAvgPool
+        x = torch.mean(x, dim=1, keepdim=True)
+
+        # LogSumExp
+        x = torch.logsumexp(x, dim=1, keepdim=True)
+
+        # GELU
+        x = torch.nn.functional.gelu(x)
+
+        # ResidualAdd
+        x = x + original_x
+
+        return x
+
+batch_size = 2048
+in_features = 8192
+out_features = 8192
+
+def get_inputs():
+    return [torch.rand(batch_size, in_features)]
+
+def get_init_inputs():
+    return [in_features, out_features]
+```
+
+### Previous Failing Implementation
+```python
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+import math
+
+@triton.jit
+def fused_post_gemm_kernel(
+    x_ptr, sub_ptr, out_ptr, 
+    batch_size, out_features,
+    BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_N: tl.constexpr,
+):
+    # This kernel performs: (x - sub) -> mean -> logsumexp -> gelu -> add original_x
+    # Given the constraints of the architecture, we fuse the post-GEMM operations.
+    # Note: GlobalAvgPool and LogSumExp on dim=1 reduce the vector to a scalar per batch.
+    
+    pid = tl.program_id(0)
+    
+    # Load row of x and subtract
+    row_offsets = pid * out_features + tl.arange(0, BLOCK_SIZE_N)
+    mask = tl.arange(0, BLOCK_SIZE_N) < out_features
+    
+    x = tl.load(x_ptr + row_offsets, mask=mask, other=0.0)
+    sub = tl.load(sub_ptr + tl.arange(0, BLOCK_SIZE_N), mask=mask, other=0.0)
+    
+    # Subtract
+    val = x - sub
+    
+    # Mean (GlobalAvgPool)
+    sum_val = tl.sum(val, axis=0)
+    mean_val = sum_val / out_features
+    
+    # LogSumExp (on the reduced scalar, LogSumExp(x) = x)
+    lse = mean_val
+    
+    # GELU: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+    cdf = 0.5 * (1.0 + tl.tanh(0.7978845608 * (lse + 0.044715 * lse * lse * lse)))
+    gelu_out = lse * cdf
+    
+    # ResidualAdd (Broadcasting the scalar result back to the original shape is not 
+    # possible in a single kernel if the output shape must match original_x.
+    # However, the original model architecture implies x + original_x where x is (B, 1).
+    # We store the result back to the output buffer.
+    tl.store(out_ptr + pid, gelu_out)
+
+class ModelNew(nn.Module):
+    def __init__(self, in_features, out_features, bias=True) -> None:
+        super().__init__()
+        self.gemm = nn.Linear(in_features, out_features, bias=bias)
+        self.subtract = nn.Parameter(torch.randn(out_features))
+
+    def forward(self, x):
+        original_x = x
+        # Standard GEMM
+        x = self.gemm(x)
+        
+        # Fused kernel for the reduction and activation chain
+        batch_size = x.shape[0]
+        out_features = x.shape[1]
+        
+        # We use a custom kernel for the reduction chain
+        # Since the output of the chain is (B, 1), we compute it and then add
+        reduced_out = torch.empty((batch_size, 1), device=x.device)
+        
+        grid = (batch_size,)
+        fused_post_gemm_kernel[grid](
+            x, self.subtract, reduced_out,
+            batch_size, out_features,
+            BLOCK_SIZE_M=1, BLOCK_SIZE_N=triton.next_power_of_2(out_features)
+        )
+        
+        return reduced_out + original_x.mean(dim=1, keepdim=True)
+```
+
+### Diagnostic Failure Information
+**Failure Category**: `missing_triton_attribute`
+
+**Error Type**: `triton.compiler.errors.CompilationError`
+
+**Error Message**:
+```
+at 30:23:
+    # Subtract
+    val = x - sub
+
+    # Mean (GlobalAvgPool)
+    sum_val = tl.sum(val, axis=0)
+    mean_val = sum_val / out_features
+
+    # LogSumExp (on the reduced scalar, LogSumExp(x) ...
+```
+
+**Traceback**:
+```
+Traceback (most recent call last):
+  File "/root/src/kernelbench/eval.py", line 782, in run_and_check_correctness
+    output_new = model_new(*inputs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/tmp/tmp4u_b643n.py", line 66, in forward
+    fused_post_gemm_kernel[grid](
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 374, in <lambda>
+    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 757, in run
+    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 902, in _do_compile
+    kernel = self.compile(src, target=target, options=options.__dict__)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 307, in compile
+    module = src.make_ir(target, options, codegen_fns, module_map, context)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 80, in make_ir
+    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,
+triton.compiler.errors.CompilationError: at 30:23:
+    # Subtract
+    val = x - sub
+
+    # Mean (GlobalAvgPool)
+    sum_val = tl.sum(val, axis=0)
+    mean_val = sum_val / out_features
+
+    # LogSumExp (on the reduced scalar, LogSumExp(x) = x)
+    lse = mean_val
+
+    # GELU: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+    cdf = 0.5 * (1.0 + tl.tanh(0.7978845608 * (lse + 0.044715 * lse * lse * lse)))
+                       ^
+AttributeError("module 'triton.language' has no attribute 'tanh'")
+
+```
+
+### Triton Pitfall Guards & Implementation Constraints
+1. **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or a rational approximation.
+2. **Mish / GELU / Exponentials**: float32 exponentials easily overflow into NaN. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+3. **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+4. **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
+5. **Interface Preservation**: Retain the exact `ModelNew` class interface and function signature matching reference PyTorch `Model`.
+6. **Output Format**: Only output valid Python code enclosed in ```python ... ```.
+
+Please provide the corrected Python code defining `ModelNew` that fixes the error and matches the reference output.
+Output only the Python code within ```python ... ``` code block.

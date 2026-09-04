@@ -1,0 +1,59 @@
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+@triton.jit
+def fused_add_hardswish_kernel(
+    x_ptr, add_ptr, out_ptr,
+    n_elements,
+    BLOCK_SIZE: tl.constexpr
+):
+    pid = tl.program_id(0)
+    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+    mask = offsets < n_elements
+    
+    x = tl.load(x_ptr + offsets, mask=mask)
+    add_val = tl.load(add_ptr + offsets, mask=mask)
+    
+    # x = x + add_input
+    res = x + add_val
+    
+    # HardSwish: x * relu6(x + 3) / 6
+    # relu6(x) = min(max(x, 0), 6)
+    hs = res * tl.clamp(res + 3.0, 0.0, 6.0) / 6.0
+    
+    tl.store(out_ptr + offsets, hs, mask=mask)
+
+def triton_add_hardswish(x: torch.Tensor, add_input: torch.Tensor):
+    n_elements = x.numel()
+    out = torch.empty_like(x)
+    BLOCK_SIZE = 1024
+    grid = (triton.cdiv(n_elements, BLOCK_SIZE),)
+    
+    fused_add_hardswish_kernel[grid](
+        x, add_input, out,
+        n_elements, BLOCK_SIZE=BLOCK_SIZE
+    )
+    return out
+
+class ModelNew(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, output_padding, bias_shape) -> None:
+        super(ModelNew, self).__init__()
+        self.conv_transpose = nn.ConvTranspose3d(
+            in_channels, out_channels, kernel_size, 
+            stride=stride, padding=padding, output_padding=output_padding
+        )
+        # The error occurred because bias_shape is (out_channels, 1, 1, 1, 1)
+        # and the output of ConvTranspose3d is (batch, out_channels, D, H, W).
+        # Broadcasting (out_channels, 1, 1, 1, 1) against (batch, out_channels, D, H, W)
+        # requires the bias to be (1, out_channels, 1, 1, 1).
+        self.bias = nn.Parameter(torch.randn(1, out_channels, 1, 1, 1))
+
+    def forward(self, x, add_input):
+        # Perform convolution
+        x = self.conv_transpose(x)
+        # Add bias with correct broadcasting
+        x = x + self.bias
+        # Use fused Triton kernel for addition and HardSwish
+        return triton_add_hardswish(x, add_input)

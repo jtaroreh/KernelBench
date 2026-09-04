@@ -1,0 +1,145 @@
+You are an expert GPU kernel engineer tasked with repairing a failing Triton kernel for Gemini 3.8 Flash.
+Problem: 26_ConvTranspose3d_Add_HardSwish
+
+The previous implementation failed during compilation, execution, or numerical verification against the reference PyTorch implementation.
+Your goal is to inspect the error, identify the root cause, and produce a fully functional, bitwise-accurate, high-performance Triton kernel implementation in `ModelNew`.
+
+### Reference PyTorch Architecture
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    Model that performs a 3D transposed convolution, adds an input tensor, and applies HardSwish activation.
+    """
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, output_padding, bias_shape):
+        super(Model, self).__init__()
+        self.conv_transpose = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, output_padding=output_padding)
+        self.bias = nn.Parameter(torch.randn(bias_shape))
+
+    def forward(self, x, add_input):
+        """
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, in_channels, D, H, W).
+            add_input (torch.Tensor): Input tensor to be added after transposed convolution, of shape (batch_size, out_channels, D, H, W).
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, out_channels, D, H, W) after HardSwish activation.
+        """
+        x = self.conv_transpose(x)
+        x = x + add_input
+        x = x * torch.nn.functional.hardswish(x)
+        return x
+
+
+batch_size = 128
+in_channels = 32
+out_channels = 64
+D, H, W = 16, 16, 16
+kernel_size = 3
+stride = 2
+padding = 1
+output_padding = 1
+bias_shape = (out_channels, 1, 1, 1, 1)
+
+def get_inputs():
+    return [torch.rand(batch_size, in_channels, D, H, W), torch.rand(batch_size, out_channels, D*stride, H*stride, W*stride)]
+
+def get_init_inputs():
+    return [in_channels, out_channels, kernel_size, stride, padding, output_padding, bias_shape]
+```
+
+### Previous Failing Implementation
+```python
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+@triton.jit
+def fused_add_hardswish_kernel(
+    x_ptr, add_ptr, out_ptr,
+    n_elements,
+    BLOCK_SIZE: tl.constexpr
+):
+    pid = tl.program_id(0)
+    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+    mask = offsets < n_elements
+    
+    x = tl.load(x_ptr + offsets, mask=mask)
+    add_val = tl.load(add_ptr + offsets, mask=mask)
+    
+    # x = x + add_input
+    res = x + add_val
+    
+    # HardSwish: x * relu6(x + 3) / 6
+    # relu6(x) = min(max(x, 0), 6)
+    hs = res * tl.clamp(res + 3.0, 0.0, 6.0) / 6.0
+    
+    tl.store(out_ptr + offsets, hs, mask=mask)
+
+def triton_add_hardswish(x: torch.Tensor, add_input: torch.Tensor):
+    n_elements = x.numel()
+    out = torch.empty_like(x)
+    BLOCK_SIZE = 1024
+    grid = (triton.cdiv(n_elements, BLOCK_SIZE),)
+    
+    fused_add_hardswish_kernel[grid](
+        x, add_input, out,
+        n_elements, BLOCK_SIZE=BLOCK_SIZE
+    )
+    return out
+
+class ModelNew(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, output_padding, bias_shape) -> None:
+        super(ModelNew, self).__init__()
+        self.conv_transpose = nn.ConvTranspose3d(
+            in_channels, out_channels, kernel_size, 
+            stride=stride, padding=padding, output_padding=output_padding
+        )
+        self.bias = nn.Parameter(torch.randn(bias_shape))
+
+    def forward(self, x, add_input):
+        # Perform convolution
+        x = self.conv_transpose(x)
+        # Add bias manually to ensure it's included before fusion
+        x = x + self.bias
+        # Use fused Triton kernel for addition and HardSwish
+        return triton_add_hardswish(x, add_input)
+```
+
+### Diagnostic Failure Information
+**Failure Category**: `shape_mismatch`
+
+**Error Type**: `builtins.RuntimeError`
+
+**Error Message**:
+```
+The size of tensor a (128) must match the size of tensor b (64) at non-singleton dimension 0
+```
+
+**Traceback**:
+```
+Traceback (most recent call last):
+  File "/root/src/kernelbench/eval.py", line 782, in run_and_check_correctness
+    output_new = model_new(*inputs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/tmp/tmpoieuu4fm.py", line 53, in forward
+    x = x + self.bias
+RuntimeError: The size of tensor a (128) must match the size of tensor b (64) at non-singleton dimension 0
+
+```
+
+### Triton Pitfall Guards & Implementation Constraints
+1. **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or a rational approximation.
+2. **Mish / GELU / Exponentials**: float32 exponentials easily overflow into NaN. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+3. **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+4. **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
+5. **Interface Preservation**: Retain the exact `ModelNew` class interface and function signature matching reference PyTorch `Model`.
+6. **Output Format**: Only output valid Python code enclosed in ```python ... ```.
+
+Please provide the corrected Python code defining `ModelNew` that fixes the error and matches the reference output.
+Output only the Python code within ```python ... ``` code block.

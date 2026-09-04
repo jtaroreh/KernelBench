@@ -1,0 +1,184 @@
+You are an expert GPU kernel engineer tasked with repairing a failing Triton kernel for Gemini 3.8 Flash.
+Problem: 98_Matmul_AvgPool_GELU_Scale_Max
+
+The previous implementation failed during compilation, execution, or numerical verification against the reference PyTorch implementation.
+Your goal is to inspect the error, identify the root cause, and produce a fully functional, bitwise-accurate, high-performance Triton kernel implementation in `ModelNew`.
+
+### Reference PyTorch Architecture
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    A model implementing the pattern "Matmul_AvgPool_GELU_Scale_Max".
+    """
+    def __init__(self, in_features, out_features, pool_kernel_size, scale_factor):
+        super(Model, self).__init__()
+        self.matmul = nn.Linear(in_features, out_features)
+        self.avg_pool = nn.AvgPool1d(kernel_size=pool_kernel_size)
+        self.scale_factor = scale_factor
+
+    def forward(self, x):
+        """
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, in_features).
+
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, out_features).
+        """
+        x = self.matmul(x)
+        x = self.avg_pool(x.unsqueeze(1)).squeeze(1)
+        x = torch.nn.functional.gelu(x)
+        x = x * self.scale_factor
+        x = torch.max(x, dim=1).values
+        return x
+
+batch_size = 1024
+in_features = 8192
+out_features = 8192
+pool_kernel_size = 16
+scale_factor = 2.0
+
+def get_inputs():
+    return [torch.rand(batch_size, in_features)]
+
+def get_init_inputs():
+    return [in_features, out_features, pool_kernel_size, scale_factor]
+```
+
+### Previous Failing Implementation
+```python
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+@triton.jit
+def fused_post_matmul_kernel(
+    x_ptr, out_ptr, 
+    batch_size, out_features, pool_size, scale_factor,
+    BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_N: tl.constexpr
+):
+    # This kernel performs: AvgPool1d -> GELU -> Scale -> Max(dim=1)
+    # Input x is (batch_size, out_features)
+    # AvgPool1d with kernel_size=pool_size reduces out_features to out_features // pool_size
+    
+    pid = tl.program_id(0)
+    num_cols = out_features // pool_size
+    
+    # Each program handles one row (batch element)
+    row_idx = pid
+    if row_idx < batch_size:
+        row_max = -float('inf')
+        
+        # Iterate over the pooled segments
+        for col_idx in range(num_cols):
+            # Compute average of the window
+            sum_val = 0.0
+            for k in range(pool_size):
+                idx = row_idx * out_features + (col_idx * pool_size + k)
+                sum_val += tl.load(x_ptr + idx)
+            
+            avg = sum_val / pool_size
+            
+            # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+            gelu = 0.5 * avg * (1.0 + tl.tanh(0.79788456 * (avg + 0.044715 * avg * avg * avg)))
+            
+            # Scale
+            scaled = gelu * scale_factor
+            
+            # Max
+            if scaled > row_max:
+                row_max = scaled
+        
+        tl.store(out_ptr + row_idx, row_max)
+
+class ModelNew(nn.Module):
+    def __init__(self, in_features, out_features, pool_kernel_size, scale_factor) -> None:
+        super().__init__()
+        self.matmul = nn.Linear(in_features, out_features)
+        self.pool_kernel_size = pool_kernel_size
+        self.scale_factor = scale_factor
+
+    def forward(self, x):
+        # Matmul remains standard (highly optimized by cuBLAS)
+        x = self.matmul(x)
+        
+        batch_size, out_features = x.shape
+        out = torch.empty(batch_size, device=x.device, dtype=x.dtype)
+        
+        # Launch fused kernel
+        grid = (batch_size,)
+        fused_post_matmul_kernel[grid](
+            x, out,
+            batch_size, out_features, self.pool_kernel_size, self.scale_factor,
+            BLOCK_SIZE_M=1, BLOCK_SIZE_N=1
+        )
+        return out
+```
+
+### Diagnostic Failure Information
+**Failure Category**: `missing_triton_attribute`
+
+**Error Type**: `triton.compiler.errors.CompilationError`
+
+**Error Message**:
+```
+at 29:38:
+        # Iterate over the pooled segments
+        for col_idx in range(num_cols):
+            # Compute average of the window
+            sum_val = 0.0
+            for k in range(pool_si...
+```
+
+**Traceback**:
+```
+Traceback (most recent call last):
+  File "/root/src/kernelbench/eval.py", line 782, in run_and_check_correctness
+    output_new = model_new(*inputs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/tmp/tmp2wo91xlh.py", line 62, in forward
+    fused_post_matmul_kernel[grid](
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 374, in <lambda>
+    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 757, in run
+    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 902, in _do_compile
+    kernel = self.compile(src, target=target, options=options.__dict__)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 307, in compile
+    module = src.make_ir(target, options, codegen_fns, module_map, context)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 80, in make_ir
+    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,
+triton.compiler.errors.CompilationError: at 29:38:
+        # Iterate over the pooled segments
+        for col_idx in range(num_cols):
+            # Compute average of the window
+            sum_val = 0.0
+            for k in range(pool_size):
+                idx = row_idx * out_features + (col_idx * pool_size + k)
+                sum_val += tl.load(x_ptr + idx)
+
+            avg = sum_val / pool_size
+
+            # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+            gelu = 0.5 * avg * (1.0 + tl.tanh(0.79788456 * (avg + 0.044715 * avg * avg * avg)))
+                                      ^
+AttributeError("module 'triton.language' has no attribute 'tanh'")
+
+```
+
+### Triton Pitfall Guards & Implementation Constraints
+1. **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or a rational approximation.
+2. **Mish / GELU / Exponentials**: float32 exponentials easily overflow into NaN. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+3. **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+4. **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
+5. **Interface Preservation**: Retain the exact `ModelNew` class interface and function signature matching reference PyTorch `Model`.
+6. **Output Format**: Only output valid Python code enclosed in ```python ... ```.
+
+Please provide the corrected Python code defining `ModelNew` that fixes the error and matches the reference output.
+Output only the Python code within ```python ... ``` code block.
