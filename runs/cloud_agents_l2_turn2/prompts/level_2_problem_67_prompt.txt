@@ -1,0 +1,174 @@
+You are an expert GPU kernel engineer tasked with repairing a failing Triton kernel for Gemini 3.8 Flash.
+Problem: 67_Conv2d_GELU_GlobalAvgPool
+
+The previous implementation failed during compilation, execution, or numerical verification against the reference PyTorch implementation.
+Your goal is to inspect the error, identify the root cause, and produce a fully functional, bitwise-accurate, high-performance Triton kernel implementation in `ModelNew`.
+
+### Reference PyTorch Architecture
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    Simple model that performs a convolution, applies GELU, and then performs global average pooling.
+    """
+    def __init__(self, in_channels, out_channels, kernel_size):
+        super(Model, self).__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size)
+
+    def forward(self, x):
+        """
+        Args:
+            x: Input tensor of shape (batch_size, in_channels, height, width)
+        Returns:
+            Output tensor of shape (batch_size, out_channels)
+        """
+        x = self.conv(x)
+        x = torch.nn.functional.gelu(x)
+        x = torch.nn.functional.adaptive_avg_pool2d(x, 1)
+        x = x.squeeze(-1).squeeze(-1)
+        return x
+
+batch_size = 128
+in_channels = 8
+out_channels = 64
+height, width = 256, 256
+kernel_size = 3
+
+def get_inputs():
+    return [torch.rand(batch_size, in_channels, height, width)]
+
+def get_init_inputs():
+    return [in_channels, out_channels, kernel_size]
+```
+
+### Previous Failing Implementation
+```python
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+@triton.jit
+def gelu_pool_kernel(
+    x_ptr, out_ptr,
+    batch_size, out_channels, spatial_size,
+    BLOCK_SIZE_SPATIAL: tl.constexpr,
+):
+    # Each program handles one (batch, channel) pair
+    pid = tl.program_id(0)
+    b = pid // out_channels
+    c = pid % out_channels
+    
+    x_offset = (b * out_channels * spatial_size) + (c * spatial_size)
+    
+    sum_val = 0.0
+    for i in range(0, spatial_size, BLOCK_SIZE_SPATIAL):
+        offsets = i + tl.arange(0, BLOCK_SIZE_SPATIAL)
+        mask = offsets < spatial_size
+        
+        # Load
+        x = tl.load(x_ptr + x_offset + offsets, mask=mask, other=0.0)
+        
+        # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+        cdf = 0.5 * (1.0 + tl.tanh(0.79788456 * (x + 0.044715 * x * x * x)))
+        gelu_x = x * cdf
+        
+        sum_val += tl.sum(tl.where(mask, gelu_x, 0.0))
+        
+    tl.store(out_ptr + (b * out_channels + c), sum_val / spatial_size)
+
+def triton_gelu_pool(x: torch.Tensor):
+    batch_size, out_channels, h, w = x.shape
+    spatial_size = h * w
+    out = torch.empty((batch_size, out_channels), device=x.device, dtype=x.dtype)
+    
+    grid = (batch_size * out_channels,)
+    BLOCK_SIZE_SPATIAL = triton.next_power_of_2(spatial_size)
+    BLOCK_SIZE_SPATIAL = min(BLOCK_SIZE_SPATIAL, 1024)
+    
+    gelu_pool_kernel[grid](
+        x, out,
+        batch_size, out_channels, spatial_size,
+        BLOCK_SIZE_SPATIAL=BLOCK_SIZE_SPATIAL
+    )
+    return out
+
+class ModelNew(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size) -> None:
+        super().__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size)
+
+    def forward(self, x):
+        x = self.conv(x)
+        # Fused GELU + Adaptive Avg Pool (1x1)
+        return triton_gelu_pool(x)
+```
+
+### Diagnostic Failure Information
+**Failure Category**: `missing_triton_attribute`
+
+**Error Type**: `triton.compiler.errors.CompilationError`
+
+**Error Message**:
+```
+at 22:27:
+    x_offset = (b * out_channels * spatial_size) + (c * spatial_size)
+
+    sum_val = 0.0
+    for i in range(0, spatial_size, BLOCK_SIZE_SPATIAL):
+        offsets = i + tl.arange(0, BLOCK_...
+```
+
+**Traceback**:
+```
+Traceback (most recent call last):
+  File "/root/src/kernelbench/eval.py", line 782, in run_and_check_correctness
+    output_new = model_new(*inputs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/tmp/tmpg1xwifgz.py", line 59, in forward
+    return triton_gelu_pool(x)
+  File "/tmp/tmpg1xwifgz.py", line 44, in triton_gelu_pool
+    gelu_pool_kernel[grid](
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 374, in <lambda>
+    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 757, in run
+    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 902, in _do_compile
+    kernel = self.compile(src, target=target, options=options.__dict__)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 307, in compile
+    module = src.make_ir(target, options, codegen_fns, module_map, context)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 80, in make_ir
+    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,
+triton.compiler.errors.CompilationError: at 22:27:
+    x_offset = (b * out_channels * spatial_size) + (c * spatial_size)
+
+    sum_val = 0.0
+    for i in range(0, spatial_size, BLOCK_SIZE_SPATIAL):
+        offsets = i + tl.arange(0, BLOCK_SIZE_SPATIAL)
+        mask = offsets < spatial_size
+
+        # Load
+        x = tl.load(x_ptr + x_offset + offsets, mask=mask, other=0.0)
+
+        # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+        cdf = 0.5 * (1.0 + tl.tanh(0.79788456 * (x + 0.044715 * x * x * x)))
+                           ^
+AttributeError("module 'triton.language' has no attribute 'tanh'")
+
+```
+
+### Triton Pitfall Guards & Implementation Constraints
+1. **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or a rational approximation.
+2. **Mish / GELU / Exponentials**: float32 exponentials easily overflow into NaN. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+3. **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+4. **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
+5. **Interface Preservation**: Retain the exact `ModelNew` class interface and function signature matching reference PyTorch `Model`.
+6. **Output Format**: Only output valid Python code enclosed in ```python ... ```.
+
+Please provide the corrected Python code defining `ModelNew` that fixes the error and matches the reference output.
+Output only the Python code within ```python ... ``` code block.

@@ -1,0 +1,139 @@
+You are an expert GPU kernel engineer tasked with repairing a failing Triton kernel for Gemini 3.8 Flash.
+Problem: 79_Conv3d_Multiply_InstanceNorm_Clamp_Multiply_Max
+
+The previous implementation failed during compilation, execution, or numerical verification against the reference PyTorch implementation.
+Your goal is to inspect the error, identify the root cause, and produce a fully functional, bitwise-accurate, high-performance Triton kernel implementation in `ModelNew`.
+
+### Reference PyTorch Architecture
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    A 3D convolutional layer followed by multiplication, instance normalization, clamping, multiplication, and a max operation.
+    """
+    def __init__(self, in_channels, out_channels, kernel_size, multiplier_shape, clamp_min, clamp_max):
+        super(Model, self).__init__()
+        self.conv = nn.Conv3d(in_channels, out_channels, kernel_size)
+        self.multiplier = nn.Parameter(torch.randn(multiplier_shape))
+        self.instance_norm = nn.InstanceNorm3d(out_channels)
+        self.clamp_min = clamp_min
+        self.clamp_max = clamp_max
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = x * self.multiplier
+        x = self.instance_norm(x)
+        x = torch.clamp(x, self.clamp_min, self.clamp_max)
+        x = x * self.multiplier
+        x = torch.max(x, dim=1)[0]
+        return x
+
+batch_size = 128
+in_channels = 3
+out_channels = 16
+depth, height, width = 16, 32, 32
+kernel_size = 3
+multiplier_shape = (out_channels, 1, 1, 1)
+clamp_min = -1.0
+clamp_max = 1.0
+
+def get_inputs():
+    return [torch.rand(batch_size, in_channels, depth, height, width)]
+
+def get_init_inputs():
+    return [in_channels, out_channels, kernel_size, multiplier_shape, clamp_min, clamp_max]
+```
+
+### Previous Failing Implementation
+```python
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+@triton.jit
+def fused_post_conv_kernel(
+    x_ptr, m_ptr, out_ptr,
+    n_elements, channels, spatial_size,
+    clamp_min, clamp_max,
+    BLOCK_SIZE: tl.constexpr
+):
+    pid = tl.program_id(0)
+    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+    mask = offsets < n_elements
+    
+    # Calculate channel index for multiplier
+    # x is (N, C, D, H, W), spatial_size = D*H*W
+    idx = offsets // spatial_size
+    c_idx = (idx % (channels * spatial_size)) // spatial_size
+    
+    x = tl.load(x_ptr + offsets, mask=mask)
+    m = tl.load(m_ptr + c_idx, mask=mask)
+    
+    # Multiply -> Clamp -> Multiply
+    x = x * m
+    # Instance Norm is complex to fuse fully due to mean/var, 
+    # so we handle the element-wise ops here
+    x = tl.maximum(tl.minimum(x, clamp_max), clamp_min)
+    x = x * m
+    
+    tl.store(out_ptr + offsets, x, mask=mask)
+
+class ModelNew(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, multiplier_shape, clamp_min, clamp_max):
+        super(ModelNew, self).__init__()
+        self.conv = nn.Conv3d(in_channels, out_channels, kernel_size)
+        self.multiplier = nn.Parameter(torch.randn(multiplier_shape))
+        self.instance_norm = nn.InstanceNorm3d(out_channels)
+        self.clamp_min = clamp_min
+        self.clamp_max = clamp_max
+        self.out_channels = out_channels
+
+    def forward(self, x):
+        x = self.conv(x)
+        
+        # Prepare for Triton
+        N, C, D, H, W = x.shape
+        spatial_size = D * H * W
+        n_elements = x.numel()
+        
+        out = torch.empty_like(x)
+        
+        # Launch fused kernel for: x * m -> clamp -> x * m
+        # Note: InstanceNorm is performed separately as it requires reduction
+        grid = lambda meta: (triton.cdiv(n_elements, meta['BLOCK_SIZE']),)
+        fused_post_conv_kernel[grid](
+            x, self.multiplier.view(-1), out,
+            n_elements, C, spatial_size,
+            self.clamp_min, self.clamp_max,
+            BLOCK_SIZE=1024
+        )
+        
+        # Apply InstanceNorm
+        x = self.instance_norm(out)
+        
+        # Max over channel dim
+        x = torch.max(x, dim=1)[0]
+        return x
+```
+
+### Diagnostic Failure Information
+**Failure Category**: `numerical_mismatch`
+
+**Numerical / Correctness Details**:
+- Max Difference: ['4.091852']
+- Avg Difference: ['0.698162']
+- Correctness Issue: Output mismatch
+
+### Triton Pitfall Guards & Implementation Constraints
+1. **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or a rational approximation.
+2. **Mish / GELU / Exponentials**: float32 exponentials easily overflow into NaN. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+3. **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+4. **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
+5. **Interface Preservation**: Retain the exact `ModelNew` class interface and function signature matching reference PyTorch `Model`.
+6. **Output Format**: Only output valid Python code enclosed in ```python ... ```.
+
+Please provide the corrected Python code defining `ModelNew` that fixes the error and matches the reference output.
+Output only the Python code within ```python ... ``` code block.

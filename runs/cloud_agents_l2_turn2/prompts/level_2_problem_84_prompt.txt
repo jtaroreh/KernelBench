@@ -1,0 +1,151 @@
+You are an expert GPU kernel engineer tasked with repairing a failing Triton kernel for Gemini 3.8 Flash.
+Problem: 84_Gemm_BatchNorm_Scaling_Softmax
+
+The previous implementation failed during compilation, execution, or numerical verification against the reference PyTorch implementation.
+Your goal is to inspect the error, identify the root cause, and produce a fully functional, bitwise-accurate, high-performance Triton kernel implementation in `ModelNew`.
+
+### Reference PyTorch Architecture
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    Model that performs a matrix multiplication (Gemm), Batch Normalization, scaling, and Softmax.
+    """
+    def __init__(self, in_features, out_features, bn_eps=1e-5, bn_momentum=0.1, scale_shape=(1,)):
+        super(Model, self).__init__()
+        self.gemm = nn.Linear(in_features, out_features)
+        self.bn = nn.BatchNorm1d(out_features, eps=bn_eps, momentum=bn_momentum)
+        self.scale = nn.Parameter(torch.ones(scale_shape))
+        self.softmax = nn.Softmax(dim=1)
+
+    def forward(self, x):
+        """
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, in_features).
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, out_features).
+        """
+        x = self.gemm(x)
+        x = self.bn(x)
+        x = self.scale * x
+        x = self.softmax(x)
+        return x
+
+batch_size = 1024
+in_features = 8192
+out_features = 8192
+bn_eps = 1e-5
+bn_momentum = 0.1
+scale_shape = (1,)
+
+def get_inputs():
+    return [torch.rand(batch_size, in_features)]
+
+def get_init_inputs():
+    return [in_features, out_features, bn_eps, bn_momentum, scale_shape]
+```
+
+### Previous Failing Implementation
+```python
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+@triton.jit
+def fused_bn_scale_softmax_kernel(
+    x_ptr, mean_ptr, var_ptr, weight_ptr, bias_ptr, scale_ptr, out_ptr,
+    n_rows, n_cols, eps,
+    BLOCK_SIZE: tl.constexpr,
+):
+    row_idx = tl.program_id(0)
+    row_start = row_idx * n_cols
+    
+    # Load scale factor
+    scale = tl.load(scale_ptr)
+    
+    # Compute BN + Scale
+    # x_norm = (x - mean) / sqrt(var + eps) * weight + bias
+    # final = x_norm * scale
+    
+    # We process row by row to compute softmax
+    # Online softmax: keep track of max and sum
+    m_i = -float('inf')
+    s_i = 0.0
+    
+    # First pass: BN and find max for softmax
+    row_offsets = tl.arange(0, BLOCK_SIZE)
+    mask = row_offsets < n_cols
+    
+    x = tl.load(x_ptr + row_start + row_offsets, mask=mask, other=-float('inf'))
+    mean = tl.load(mean_ptr + row_offsets, mask=mask)
+    var = tl.load(var_ptr + row_offsets, mask=mask)
+    weight = tl.load(weight_ptr + row_offsets, mask=mask)
+    bias = tl.load(bias_ptr + row_offsets, mask=mask)
+    
+    inv_std = 1.0 / tl.sqrt(var + eps)
+    x_bn = (x - mean) * inv_std * weight + bias
+    x_scaled = x_bn * scale
+    
+    m_i = tl.max(x_scaled, axis=0)
+    
+    # Second pass: Softmax
+    p = tl.exp(x_scaled - m_i)
+    s_i = tl.sum(p, axis=0)
+    
+    # Store result
+    tl.store(out_ptr + row_start + row_offsets, p / s_i, mask=mask)
+
+class ModelNew(nn.Module):
+    def __init__(self, in_features, out_features, bn_eps=1e-5, bn_momentum=0.1, scale_shape=(1,)):
+        super(ModelNew, self).__init__()
+        self.gemm = nn.Linear(in_features, out_features)
+        self.bn = nn.BatchNorm1d(out_features, eps=bn_eps, momentum=bn_momentum)
+        self.scale = nn.Parameter(torch.ones(scale_shape))
+        self.bn_eps = bn_eps
+
+    def forward(self, x):
+        x = self.gemm(x)
+        
+        # Ensure BN is in eval mode for inference optimization
+        self.bn.eval()
+        
+        # Triton kernel expects contiguous inputs
+        x = x.contiguous()
+        out = torch.empty_like(x)
+        
+        n_rows, n_cols = x.shape
+        BLOCK_SIZE = triton.next_power_of_2(n_cols)
+        
+        grid = (n_rows,)
+        
+        fused_bn_scale_softmax_kernel[grid](
+            x, self.bn.running_mean, self.bn.running_var, 
+            self.bn.weight, self.bn.bias, self.scale, out,
+            n_rows, n_cols, self.bn_eps,
+            BLOCK_SIZE=BLOCK_SIZE
+        )
+        
+        return out
+```
+
+### Diagnostic Failure Information
+**Failure Category**: `numerical_mismatch`
+
+**Numerical / Correctness Details**:
+- Max Difference: ['0.012848']
+- Avg Difference: ['0.000083']
+- Correctness Issue: Output mismatch
+
+### Triton Pitfall Guards & Implementation Constraints
+1. **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or a rational approximation.
+2. **Mish / GELU / Exponentials**: float32 exponentials easily overflow into NaN. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+3. **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+4. **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
+5. **Interface Preservation**: Retain the exact `ModelNew` class interface and function signature matching reference PyTorch `Model`.
+6. **Output Format**: Only output valid Python code enclosed in ```python ... ```.
+
+Please provide the corrected Python code defining `ModelNew` that fixes the error and matches the reference output.
+Output only the Python code within ```python ... ``` code block.

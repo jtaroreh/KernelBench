@@ -1,0 +1,203 @@
+You are an expert GPU kernel engineer tasked with repairing a failing Triton kernel for Gemini 3.8 Flash.
+Problem: 89_ConvTranspose3d_MaxPool_Softmax_Subtract_Swish_Max
+
+The previous implementation failed during compilation, execution, or numerical verification against the reference PyTorch implementation.
+Your goal is to inspect the error, identify the root cause, and produce a fully functional, bitwise-accurate, high-performance Triton kernel implementation in `ModelNew`.
+
+### Reference PyTorch Architecture
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    A model that performs a sequence of operations:
+        - ConvTranspose3d
+        - MaxPool3d
+        - Softmax
+        - Subtract
+        - Swish
+        - Max
+    """
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, output_padding, pool_kernel_size, pool_stride, pool_padding):
+        super(Model, self).__init__()
+        self.conv_transpose = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, output_padding=output_padding)
+        self.max_pool = nn.MaxPool3d(kernel_size=pool_kernel_size, stride=pool_stride, padding=pool_padding)
+        self.subtract = nn.Parameter(torch.randn(out_channels)) # Assuming subtraction is element-wise across channels
+
+    def forward(self, x):
+        x = self.conv_transpose(x)
+        x = self.max_pool(x)
+        x = torch.softmax(x, dim=1) # Apply softmax across channels (dim=1)
+        x = x - self.subtract.view(1, -1, 1, 1, 1) # Subtract across channels
+        x = torch.sigmoid(x) * x # Swish activation
+        x = torch.max(x, dim=1)[0] # Max pooling across channels
+        return x
+
+batch_size = 128
+in_channels = 3
+out_channels = 16
+depth, height, width = 16, 32, 32
+kernel_size = 3
+stride = 2
+padding = 1
+output_padding = 1
+pool_kernel_size = 2
+pool_stride = 2
+pool_padding = 0
+
+def get_inputs():
+    return [torch.rand(batch_size, in_channels, depth, height, width)]
+
+def get_init_inputs():
+    return [in_channels, out_channels, kernel_size, stride, padding, output_padding, pool_kernel_size, pool_stride, pool_padding]
+```
+
+### Previous Failing Implementation
+```python
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+@triton.jit
+def fused_post_conv_kernel(
+    x_ptr, sub_ptr, out_ptr,
+    batch, channels, depth, height, width,
+    BLOCK_SIZE: tl.constexpr
+):
+    # This kernel performs: Softmax(dim=1) -> Subtract -> Swish -> Max(dim=1)
+    # Since Softmax requires a reduction across channels, we perform it in two passes
+    # or use a simplified approach if channels are small. Here we assume channels=16.
+    
+    pid = tl.program_id(0)
+    num_spatial = depth * height * width
+    
+    # Calculate spatial index
+    spatial_idx = pid
+    if spatial_idx < num_spatial:
+        # 1. Softmax across channels
+        # Load all channels for this spatial location
+        acc = tl.zeros([16], dtype=tl.float32)
+        for c in range(channels):
+            idx = (spatial_idx * channels + c)
+            val = tl.load(x_ptr + idx)
+            acc[c] = tl.exp(val)
+        
+        sum_exp = tl.sum(acc, axis=0)
+        
+        # 2. Subtract, Swish, and Max
+        max_val = -1e20
+        for c in range(channels):
+            # Softmax
+            s = acc[c] / sum_exp
+            # Subtract
+            sub = tl.load(sub_ptr + c)
+            val = s - sub
+            # Swish
+            swish = val * (1.0 / (1.0 + tl.exp(-val)))
+            # Max reduction
+            if swish > max_val:
+                max_val = swish
+        
+        tl.store(out_ptr + spatial_idx, max_val)
+
+class ModelNew(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, output_padding, pool_kernel_size, pool_stride, pool_padding):
+        super(ModelNew, self).__init__()
+        self.conv_transpose = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding, output_padding=output_padding)
+        self.max_pool = nn.MaxPool3d(kernel_size=pool_kernel_size, stride=pool_stride, padding=pool_padding)
+        self.subtract = nn.Parameter(torch.randn(out_channels))
+        self.out_channels = out_channels
+
+    def forward(self, x):
+        x = self.conv_transpose(x)
+        x = self.max_pool(x)
+        
+        # Prepare output
+        B, C, D, H, W = x.shape
+        out = torch.empty((B, D, H, W), device=x.device)
+        
+        # Flatten spatial dims for kernel
+        x_flat = x.permute(0, 2, 3, 4, 1).reshape(-1, C)
+        
+        # Launch kernel
+        # We process each spatial location (B*D*H*W)
+        n_spatial = B * D * H * W
+        def grid(meta): return (n_spatial,)
+        
+        fused_post_conv_kernel[grid](
+            x_flat, self.subtract, out,
+            B, C, D, H, W,
+            BLOCK_SIZE=16
+        )
+        
+        return out
+```
+
+### Diagnostic Failure Information
+**Failure Category**: `compilation_error`
+
+**Error Type**: `triton.compiler.errors.CompilationError`
+
+**Error Message**:
+```
+at 22:12:
+    num_spatial = depth * height * width
+
+    # Calculate spatial index
+    spatial_idx = pid
+    if spatial_idx < num_spatial:
+        # 1. Softmax across channels
+        # Load all cha...
+```
+
+**Traceback**:
+```
+Traceback (most recent call last):
+  File "/root/src/kernelbench/eval.py", line 782, in run_and_check_correctness
+    output_new = model_new(*inputs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/tmp/tmpy1f2d60q.py", line 72, in forward
+    fused_post_conv_kernel[grid](
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 374, in <lambda>
+    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 757, in run
+    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 902, in _do_compile
+    kernel = self.compile(src, target=target, options=options.__dict__)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 307, in compile
+    module = src.make_ir(target, options, codegen_fns, module_map, context)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 80, in make_ir
+    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,
+triton.compiler.errors.CompilationError: at 22:12:
+    num_spatial = depth * height * width
+
+    # Calculate spatial index
+    spatial_idx = pid
+    if spatial_idx < num_spatial:
+        # 1. Softmax across channels
+        # Load all channels for this spatial location
+        acc = tl.zeros([16], dtype=tl.float32)
+        for c in range(channels):
+            idx = (spatial_idx * channels + c)
+            val = tl.load(x_ptr + idx)
+            acc[c] = tl.exp(val)
+            ^
+NotImplementedError('__setitem__ is not supported in triton')
+
+```
+
+### Triton Pitfall Guards & Implementation Constraints
+1. **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or a rational approximation.
+2. **Mish / GELU / Exponentials**: float32 exponentials easily overflow into NaN. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+3. **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+4. **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
+5. **Interface Preservation**: Retain the exact `ModelNew` class interface and function signature matching reference PyTorch `Model`.
+6. **Output Format**: Only output valid Python code enclosed in ```python ... ```.
+
+Please provide the corrected Python code defining `ModelNew` that fixes the error and matches the reference output.
+Output only the Python code within ```python ... ``` code block.

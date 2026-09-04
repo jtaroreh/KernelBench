@@ -1,0 +1,190 @@
+You are an expert GPU kernel engineer tasked with repairing a failing Triton kernel for Gemini 3.8 Flash.
+Problem: 58_ConvTranspose3d_LogSumExp_HardSwish_Subtract_Clamp
+
+The previous implementation failed during compilation, execution, or numerical verification against the reference PyTorch implementation.
+Your goal is to inspect the error, identify the root cause, and produce a fully functional, bitwise-accurate, high-performance Triton kernel implementation in `ModelNew`.
+
+### Reference PyTorch Architecture
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    Model that performs a 3D transposed convolution, LogSumExp, HardSwish, subtraction, clamp operations.
+    """
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, bias_shape):
+        super(Model, self).__init__()
+        self.conv_transpose = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding)
+        self.bias = nn.Parameter(torch.randn(1, 1, 1, 1)) 
+
+    def forward(self, x):
+        x = self.conv_transpose(x)
+        x = torch.logsumexp(x, dim=1, keepdim=True)
+        x = x * torch.sigmoid(x + 3) / 6
+        x = x - self.bias
+        x = torch.clamp(x, min=-1, max=1)
+        return x
+
+batch_size = 128
+in_channels = 3
+out_channels = 16
+depth, height, width = 16, 32, 32
+kernel_size = 3
+stride = 2
+padding = 1
+bias_shape = (1, 1, 1, 1)  
+
+def get_inputs():
+    return [torch.rand(batch_size, in_channels, depth, height, width)]
+
+def get_init_inputs():
+    return [in_channels, out_channels, kernel_size, stride, padding, bias_shape]
+```
+
+### Previous Failing Implementation
+```python
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+@triton.jit
+def fused_post_conv_kernel(
+    x_ptr, bias_ptr, out_ptr,
+    N, C, D, H, W,
+    BLOCK_SIZE: tl.constexpr
+):
+    # This kernel fuses: LogSumExp(dim=1) -> HardSwish -> Sub(bias) -> Clamp
+    # Input x is (N, C, D, H, W), output is (N, 1, D, H, W)
+    # We parallelize over the spatial dimensions (N * D * H * W)
+    
+    pid = tl.program_id(0)
+    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+    mask = offsets < (N * D * H * W)
+    
+    # Calculate spatial indices
+    spatial_idx = offsets
+    w = spatial_idx % W
+    h = (spatial_idx // W) % H
+    d = (spatial_idx // (W * H)) % D
+    n = (spatial_idx // (W * H * D))
+    
+    # 1. LogSumExp along dim=1
+    # Load all channels for this spatial location
+    max_val = -float('inf')
+    for c in range(C):
+        idx = n * (C * D * H * W) + c * (D * H * W) + d * (H * W) + h * W + w
+        val = tl.load(x_ptr + idx, mask=mask, other=-float('inf'))
+        max_val = tl.maximum(max_val, val)
+    
+    sum_exp = 0.0
+    for c in range(C):
+        idx = n * (C * D * H * W) + c * (D * H * W) + d * (H * W) + h * W + w
+        val = tl.load(x_ptr + idx, mask=mask, other=-float('inf'))
+        sum_exp += tl.exp(val - max_val)
+    
+    lse = max_val + tl.log(sum_exp)
+    
+    # 2. HardSwish: x * sigmoid(x + 3) / 6
+    # sigmoid(x) = 1 / (1 + exp(-x))
+    hswish = lse * (1.0 / (1.0 + tl.exp(-(lse + 3.0)))) / 6.0
+    
+    # 3. Subtraction and Clamp
+    bias = tl.load(bias_ptr)
+    res = hswish - bias
+    res = tl.maximum(res, -1.0)
+    res = tl.minimum(res, 1.0)
+    
+    tl.store(out_ptr + offsets, res, mask=mask)
+
+class ModelNew(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, bias_shape):
+        super(ModelNew, self).__init__()
+        self.conv_transpose = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride=stride, padding=padding)
+        self.bias = nn.Parameter(torch.randn(1, 1, 1, 1))
+
+    def forward(self, x):
+        x = self.conv_transpose(x)
+        N, C, D, H, W = x.shape
+        out = torch.empty((N, 1, D, H, W), device=x.device, dtype=x.dtype)
+        
+        n_elements = N * D * H * W
+        BLOCK_SIZE = 256
+        grid = (triton.cdiv(n_elements, BLOCK_SIZE),)
+        
+        fused_post_conv_kernel[grid](
+            x, self.bias, out,
+            N, C, D, H, W,
+            BLOCK_SIZE=BLOCK_SIZE
+        )
+        return out
+```
+
+### Diagnostic Failure Information
+**Failure Category**: `compilation_error`
+
+**Error Type**: `triton.compiler.errors.CompilationError`
+
+**Error Message**:
+```
+at 24:4:
+
+    # Calculate spatial indices
+    spatial_idx = offsets
+    w = spatial_idx % W
+    h = (spatial_idx // W) % H
+    d = (spatial_idx // (W * H)) % D
+    n = (spatial_idx // (W * H * D))
+...
+```
+
+**Traceback**:
+```
+Traceback (most recent call last):
+  File "/root/src/kernelbench/eval.py", line 782, in run_and_check_correctness
+    output_new = model_new(*inputs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/tmp/tmp59vvwgs5.py", line 70, in forward
+    fused_post_conv_kernel[grid](
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 374, in <lambda>
+    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 757, in run
+    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 902, in _do_compile
+    kernel = self.compile(src, target=target, options=options.__dict__)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 307, in compile
+    module = src.make_ir(target, options, codegen_fns, module_map, context)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 80, in make_ir
+    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,
+triton.compiler.errors.CompilationError: at 24:4:
+
+    # Calculate spatial indices
+    spatial_idx = offsets
+    w = spatial_idx % W
+    h = (spatial_idx // W) % H
+    d = (spatial_idx // (W * H)) % D
+    n = (spatial_idx // (W * H * D))
+
+    # 1. LogSumExp along dim=1
+    # Load all channels for this spatial location
+    max_val = -float('inf')
+    for c in range(C):
+    ^
+AssertionError("Loop-carried variable max_val has initial type fp32 but is re-assigned to <['256'], fp32> in loop! Please make sure that the type stays consistent.")
+
+```
+
+### Triton Pitfall Guards & Implementation Constraints
+1. **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or a rational approximation.
+2. **Mish / GELU / Exponentials**: float32 exponentials easily overflow into NaN. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+3. **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+4. **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
+5. **Interface Preservation**: Retain the exact `ModelNew` class interface and function signature matching reference PyTorch `Model`.
+6. **Output Format**: Only output valid Python code enclosed in ```python ... ```.
+
+Please provide the corrected Python code defining `ModelNew` that fixes the error and matches the reference output.
+Output only the Python code within ```python ... ``` code block.

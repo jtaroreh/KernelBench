@@ -1,0 +1,194 @@
+You are an expert GPU kernel engineer tasked with repairing a failing Triton kernel for Gemini 3.8 Flash.
+Problem: 80_Gemm_Max_Subtract_GELU
+
+The previous implementation failed during compilation, execution, or numerical verification against the reference PyTorch implementation.
+Your goal is to inspect the error, identify the root cause, and produce a fully functional, bitwise-accurate, high-performance Triton kernel implementation in `ModelNew`.
+
+### Reference PyTorch Architecture
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    Model that performs a GEMM, followed by a max operation, subtraction, and GELU activation.
+    """
+    def __init__(self, in_features, out_features, max_dim):
+        super(Model, self).__init__()
+        self.gemm = nn.Linear(in_features, out_features)
+        self.max_dim = max_dim
+
+    def forward(self, x):
+        """
+        Args:
+            x: Input tensor of shape (batch_size, in_features)
+
+        Returns:
+            Output tensor of shape (batch_size, out_features)
+        """
+        x = self.gemm(x)
+        x = torch.max(x, dim=self.max_dim, keepdim=True).values
+        x = x - x.mean(dim=1, keepdim=True)
+        x = torch.nn.functional.gelu(x)
+        return x
+
+batch_size = 1024
+in_features = 8192
+out_features = 8192
+max_dim = 1
+
+def get_inputs():
+    return [torch.rand(batch_size, in_features)]
+
+def get_init_inputs():
+    return [in_features, out_features, max_dim]
+```
+
+### Previous Failing Implementation
+```python
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+@triton.jit
+def fused_post_gemm_kernel(
+    x_ptr, out_ptr,
+    batch_size, out_features,
+    BLOCK_SIZE_M: tl.constexpr,
+    BLOCK_SIZE_N: tl.constexpr,
+):
+    # This kernel performs:
+    # 1. Max reduction along dim 1
+    # 2. Mean reduction along dim 1
+    # 3. Subtraction and GELU
+    
+    pid = tl.program_id(0)
+    row_start = pid * BLOCK_SIZE_M
+    
+    # Load row and compute max/mean
+    row_offsets = row_start + tl.arange(0, BLOCK_SIZE_M)
+    col_offsets = tl.arange(0, BLOCK_SIZE_N)
+    
+    # Initialize accumulators
+    max_val = -float('inf')
+    sum_val = 0.0
+    
+    # We need to compute max and mean across the row
+    # Since we need the max value to subtract, we do two passes or load once
+    # Given the constraints, we load the row into SRAM
+    for i in range(0, out_features, BLOCK_SIZE_N):
+        cols = i + col_offsets
+        mask = (row_offsets[:, None] < batch_size) & (cols[None, :] < out_features)
+        x = tl.load(x_ptr + row_offsets[:, None] * out_features + cols[None, :], mask=mask, other=-float('inf'))
+        
+        max_val = tl.maximum(max_val, tl.max(x, axis=1))
+        sum_val += tl.sum(x, axis=1)
+    
+    mean_val = sum_val / out_features
+    
+    # Second pass to apply GELU
+    for i in range(0, out_features, BLOCK_SIZE_N):
+        cols = i + col_offsets
+        mask = (row_offsets[:, None] < batch_size) & (cols[None, :] < out_features)
+        
+        # Compute: x = max_val - mean_val
+        # GELU(x) = 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+        val = max_val[:, None] - mean_val[:, None]
+        
+        # GELU approximation
+        cdf = 0.5 * (1.0 + tl.tanh(0.7978845608 * (val + 0.044715 * val * val * val)))
+        out = val * cdf
+        
+        tl.store(out_ptr + row_offsets[:, None] * 1 + 0, out, mask=mask[:, 0:1])
+
+class ModelNew(nn.Module):
+    def __init__(self, in_features, out_features, max_dim):
+        super(ModelNew, self).__init__()
+        self.gemm = nn.Linear(in_features, out_features)
+        self.out_features = out_features
+
+    def forward(self, x):
+        x = self.gemm(x)
+        batch_size = x.shape[0]
+        out = torch.empty((batch_size, 1), device=x.device, dtype=x.dtype)
+        
+        BLOCK_SIZE_M = 16
+        BLOCK_SIZE_N = triton.next_power_of_2(self.out_features)
+        
+        grid = (triton.cdiv(batch_size, BLOCK_SIZE_M),)
+        
+        fused_post_gemm_kernel[grid](
+            x, out,
+            batch_size, self.out_features,
+            BLOCK_SIZE_M=BLOCK_SIZE_M,
+            BLOCK_SIZE_N=BLOCK_SIZE_N
+        )
+        return out
+```
+
+### Diagnostic Failure Information
+**Failure Category**: `compilation_error`
+
+**Error Type**: `triton.compiler.errors.CompilationError`
+
+**Error Message**:
+```
+at 26:4:
+    # Load row and compute max/mean
+    row_offsets = row_start + tl.arange(0, BLOCK_SIZE_M)
+    col_offsets = tl.arange(0, BLOCK_SIZE_N)
+
+    # Initialize accumulators
+    max_val = -floa...
+```
+
+**Traceback**:
+```
+Traceback (most recent call last):
+  File "/root/src/kernelbench/eval.py", line 782, in run_and_check_correctness
+    output_new = model_new(*inputs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/tmp/tmpv1junefi.py", line 73, in forward
+    fused_post_gemm_kernel[grid](
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 374, in <lambda>
+    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 757, in run
+    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 902, in _do_compile
+    kernel = self.compile(src, target=target, options=options.__dict__)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 307, in compile
+    module = src.make_ir(target, options, codegen_fns, module_map, context)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 80, in make_ir
+    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,
+triton.compiler.errors.CompilationError: at 26:4:
+    # Load row and compute max/mean
+    row_offsets = row_start + tl.arange(0, BLOCK_SIZE_M)
+    col_offsets = tl.arange(0, BLOCK_SIZE_N)
+
+    # Initialize accumulators
+    max_val = -float('inf')
+    sum_val = 0.0
+
+    # We need to compute max and mean across the row
+    # Since we need the max value to subtract, we do two passes or load once
+    # Given the constraints, we load the row into SRAM
+    for i in range(0, out_features, BLOCK_SIZE_N):
+    ^
+AssertionError("Loop-carried variable max_val has initial type fp32 but is re-assigned to <['16'], fp32> in loop! Please make sure that the type stays consistent.")
+
+```
+
+### Triton Pitfall Guards & Implementation Constraints
+1. **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or a rational approximation.
+2. **Mish / GELU / Exponentials**: float32 exponentials easily overflow into NaN. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+3. **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+4. **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
+5. **Interface Preservation**: Retain the exact `ModelNew` class interface and function signature matching reference PyTorch `Model`.
+6. **Output Format**: Only output valid Python code enclosed in ```python ... ```.
+
+Please provide the corrected Python code defining `ModelNew` that fixes the error and matches the reference output.
+Output only the Python code within ```python ... ``` code block.

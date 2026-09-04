@@ -1,0 +1,139 @@
+You are an expert GPU kernel engineer tasked with repairing a failing Triton kernel for Gemini 3.8 Flash.
+Problem: 40_Matmul_Scaling_ResidualAdd
+
+The previous implementation failed during compilation, execution, or numerical verification against the reference PyTorch implementation.
+Your goal is to inspect the error, identify the root cause, and produce a fully functional, bitwise-accurate, high-performance Triton kernel implementation in `ModelNew`.
+
+### Reference PyTorch Architecture
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    A model that performs a matrix multiplication, scaling, and residual addition.
+
+    Args:
+        in_features (int): Number of input features.
+        out_features (int): Number of output features.
+        scaling_factor (float): Scaling factor to apply after matrix multiplication.
+    """
+    def __init__(self, in_features, out_features, scaling_factor):
+        super(Model, self).__init__()
+        self.matmul = nn.Linear(in_features, out_features)
+        self.scaling_factor = scaling_factor
+
+    def forward(self, x):
+        """
+        Forward pass of the model.
+
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, in_features).
+
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, out_features).
+        """
+        x = self.matmul(x)
+        original_x = x.clone().detach()
+        x = x * self.scaling_factor
+        x = x + original_x
+        return x
+
+batch_size = 16384
+in_features = 4096
+out_features = 4096
+scaling_factor = 0.5
+
+def get_inputs():
+    return [torch.rand(batch_size, in_features)]
+
+def get_init_inputs():
+    return [in_features, out_features, scaling_factor]
+```
+
+### Previous Failing Implementation
+```python
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+@triton.jit
+def matmul_scale_add_kernel(
+    x_ptr, w_ptr, b_ptr, out_ptr,
+    M, N, K,
+    scaling_factor,
+    stride_xm, stride_xk,
+    stride_wn, stride_wk,
+    BLOCK_M: tl.constexpr, BLOCK_N: tl.constexpr, BLOCK_K: tl.constexpr,
+):
+    pid_m = tl.program_id(0)
+    pid_n = tl.program_id(1)
+
+    rm = pid_m * BLOCK_M + tl.arange(0, BLOCK_M)
+    rn = pid_n * BLOCK_N + tl.arange(0, BLOCK_N)
+    rk = tl.arange(0, BLOCK_K)
+
+    acc = tl.zeros((BLOCK_M, BLOCK_N), dtype=tl.float32)
+    
+    for k in range(0, K, BLOCK_K):
+        rk_curr = k + rk
+        x = tl.load(x_ptr + rm[:, None] * stride_xm + rk_curr[None, :] * stride_xk, mask=rk_curr[None, :] < K, other=0.0)
+        w = tl.load(w_ptr + rk_curr[:, None] * stride_wk + rn[None, :] * stride_wn, mask=rk_curr[:, None] < K, other=0.0)
+        acc += tl.dot(x, w)
+
+    # Add bias
+    bias = tl.load(b_ptr + rn, mask=rn < N, other=0.0)
+    acc += bias[None, :]
+
+    # Apply scaling and residual: x = (x * scaling_factor) + x
+    # Since x is the result of matmul+bias, we compute (acc * scaling_factor) + acc
+    res = acc * (scaling_factor + 1.0)
+
+    tl.store(out_ptr + rm[:, None] * N + rn[None, :], res, mask=(rm[:, None] < M) & (rn[None, :] < N))
+
+class ModelNew(nn.Module):
+    def __init__(self, in_features, out_features, scaling_factor):
+        super(ModelNew, self).__init__()
+        self.linear = nn.Linear(in_features, out_features)
+        self.scaling_factor = scaling_factor
+        self.in_features = in_features
+        self.out_features = out_features
+
+    def forward(self, x):
+        M, K = x.shape
+        N = self.out_features
+        out = torch.empty((M, N), device=x.device, dtype=x.dtype)
+        
+        BLOCK_M, BLOCK_N, BLOCK_K = 64, 64, 32
+        grid = (triton.cdiv(M, BLOCK_M), triton.cdiv(N, BLOCK_N))
+        
+        matmul_scale_add_kernel[grid](
+            x, self.linear.weight.t(), self.linear.bias, out,
+            M, N, K,
+            self.scaling_factor,
+            x.stride(0), x.stride(1),
+            self.linear.weight.stride(0), self.linear.weight.stride(1),
+            BLOCK_M=BLOCK_M, BLOCK_N=BLOCK_N, BLOCK_K=BLOCK_K
+        )
+        return out
+```
+
+### Diagnostic Failure Information
+**Failure Category**: `numerical_mismatch`
+
+**Numerical / Correctness Details**:
+- Max Difference: ['0.002018']
+- Avg Difference: ['0.000281']
+- Correctness Issue: Output mismatch
+
+### Triton Pitfall Guards & Implementation Constraints
+1. **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or a rational approximation.
+2. **Mish / GELU / Exponentials**: float32 exponentials easily overflow into NaN. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+3. **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+4. **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
+5. **Interface Preservation**: Retain the exact `ModelNew` class interface and function signature matching reference PyTorch `Model`.
+6. **Output Format**: Only output valid Python code enclosed in ```python ... ```.
+
+Please provide the corrected Python code defining `ModelNew` that fixes the error and matches the reference output.
+Output only the Python code within ```python ... ``` code block.

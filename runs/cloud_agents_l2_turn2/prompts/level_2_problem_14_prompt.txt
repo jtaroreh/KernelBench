@@ -1,0 +1,269 @@
+You are an expert GPU kernel engineer tasked with repairing a failing Triton kernel for Gemini 3.8 Flash.
+Problem: 14_Gemm_Divide_Sum_Scaling
+
+The previous implementation failed during compilation, execution, or numerical verification against the reference PyTorch implementation.
+Your goal is to inspect the error, identify the root cause, and produce a fully functional, bitwise-accurate, high-performance Triton kernel implementation in `ModelNew`.
+
+### Reference PyTorch Architecture
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    Model that performs a matrix multiplication, division, summation, and scaling.
+    """
+    def __init__(self, input_size, hidden_size, scaling_factor):
+        super(Model, self).__init__()
+        self.weight = nn.Parameter(torch.randn(hidden_size, input_size))
+        self.scaling_factor = scaling_factor
+
+    def forward(self, x):
+        """
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, input_size).
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, hidden_size).
+        """
+        x = torch.matmul(x, self.weight.T)  # Gemm
+        x = x / 2  # Divide
+        x = torch.sum(x, dim=1, keepdim=True) # Sum
+        x = x * self.scaling_factor  # Scaling
+        return x
+
+
+batch_size   = 1024  
+input_size   = 8192  
+hidden_size  = 8192 
+scaling_factor = 1.5
+
+def get_inputs():
+    return [torch.rand(batch_size, input_size)]
+
+def get_init_inputs():
+    return [input_size, hidden_size, scaling_factor]
+```
+
+### Previous Failing Implementation
+```python
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import triton
+import triton.language as tl
+
+
+@triton.jit
+def fused_dot_product_scale_kernel(
+    A_ptr,             # Pointer to input x (M, K)
+    B_vec_ptr,         # Pointer to precomputed_vec (K,)
+    C_ptr,             # Pointer to output (M, 1)
+    M, K,              # M=batch_size, K=input_size
+    scalar_factor,     # combined scaling factor (scaling_factor / 2)
+    stride_am, stride_ak, # strides for A
+    stride_bk,            # stride for B_vec
+    stride_cm,            # stride for C
+    BLOCK_SIZE_K: tl.constexpr, # Block size for K dimension
+):
+    """
+    Triton kernel that fuses the following operations:
+    1. Matrix multiplication: (x @ weight.T)
+    2. Element-wise division: / 2
+    3. Row-wise sum: torch.sum(..., dim=1, keepdim=True)
+    4. Element-wise scaling: * scaling_factor
+
+    This is achieved by an algorithmic change:
+    output[b, 0] = (scaling_factor / 2) * sum_k( x[b, k] * sum_h( weight.T[k, h] ) )
+
+    Let precomputed_vec[k] = sum_h( weight.T[k, h] ).
+    Then output[b, 0] = (scaling_factor / 2) * sum_k( x[b, k] * precomputed_vec[k] ).
+    This is a dot product between x[b, :] and precomputed_vec[:], followed by a scalar multiplication.
+
+    Each program instance computes one row of the output C.
+    """
+    # Program ID for the batch dimension (M)
+    m = tl.program_id(0)
+
+    # Accumulator for the dot product for the current row 'm'
+    acc = tl.zeros([1], dtype=tl.float32)
+
+    # Iterate over blocks of K
+    for k_idx in range(0, K, BLOCK_SIZE_K):
+        # Load a block of A (input x) for the current row m
+        # a_block: (BLOCK_SIZE_K,)
+        a_ptrs = A_ptr + m * stride_am + (k_idx + tl.arange(0, BLOCK_SIZE_K)) * stride_ak
+        a_block = tl.load(a_ptrs, mask=(k_idx + tl.arange(0, BLOCK_SIZE_K)) < K, other=0.0)
+
+        # Load a block of B_vec (precomputed_vec)
+        # b_block: (BLOCK_SIZE_K,)
+        b_ptrs = B_vec_ptr + (k_idx + tl.arange(0, BLOCK_SIZE_K)) * stride_bk
+        b_block = tl.load(b_ptrs, mask=(k_idx + tl.arange(0, BLOCK_SIZE_K)) < K, other=0.0)
+
+        # Perform element-wise multiplication and sum reduction
+        acc += tl.sum(a_block * b_block)
+
+    # Apply the combined scalar factor
+    final_output = acc * scalar_factor
+
+    # Store the result in the output tensor C
+    c_ptrs = C_ptr + m * stride_cm
+    tl.store(c_ptrs, final_output)
+
+
+class ModelNew(nn.Module):
+    """
+    Optimized Model that performs a matrix multiplication, division, summation, and scaling
+    using a custom Triton kernel.
+    """
+    def __init__(self, input_size, hidden_size, scaling_factor):
+        super(ModelNew, self).__init__()
+        self.weight = nn.Parameter(torch.randn(hidden_size, input_size))
+        self.scaling_factor = scaling_factor
+        # Pre-calculate the combined scalar factor
+        self.scalar_factor_combined = self.scaling_factor / 2.0
+
+        # Register a buffer for the precomputed vector (sum of weight.T rows)
+        # This buffer will be updated when the model is moved to a different device.
+        self.register_buffer('precomputed_vec', None)
+        self._update_precomputed_vec()
+
+    def _update_precomputed_vec(self):
+        """
+        Computes `sum_h(self.weight.T[k, h])` for all k and stores it as a buffer.
+        This vector is used in the fused Triton kernel.
+        It's detached to prevent gradient computation through this precomputation
+        if the model is used for inference or if gradients are handled differently.
+        """
+        # Ensure the computation happens on the same device as self.weight
+        self.precomputed_vec = torch.sum(self.weight.T, dim=1).detach().contiguous()
+
+    def to(self, *args, **kwargs):
+        """
+        Overrides the .to() method to ensure the precomputed_vec buffer
+        is updated and moved to the correct device along with other model parameters.
+        """
+        # Call the parent .to() method first to move self.weight
+        super().to(*args, **kwargs)
+        # Then update the precomputed_vec on the new device
+        self._update_precomputed_vec()
+        return self
+
+    def forward(self, x: torch.Tensor):
+        """
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, input_size).
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, 1).
+        """
+        # Ensure input tensor is on CUDA and contiguous for Triton
+        assert x.is_cuda, "Input tensor must be on CUDA."
+        x = x.contiguous()
+
+        # Ensure precomputed_vec is on the same device as x
+        if self.precomputed_vec.device != x.device:
+            self.precomputed_vec = self.precomputed_vec.to(x.device)
+
+        M, K = x.shape  # M=batch_size, K=input_size
+
+        # Prepare the output tensor
+        out = torch.empty(M, 1, device=x.device, dtype=x.dtype)
+
+        # Triton kernel tunable parameters
+        # BLOCK_SIZE_K determines how many elements of the K dimension are processed
+        # in a single block. It should be a power of 2.
+        BLOCK_SIZE_K = 128
+
+        # Define the grid for the Triton kernel launch.
+        # Each program instance will compute one row of the output (M programs).
+        grid = lambda meta: (M,)
+
+        # Launch the fused Triton kernel
+        fused_dot_product_scale_kernel[grid](
+            x,
+            self.precomputed_vec,
+            out,
+            M,
+            K,
+            self.scalar_factor_combined,
+            x.stride(0), x.stride(1),  # Strides for A (input x)
+            self.precomputed_vec.stride(0), # Stride for B_vec (precomputed_vec)
+            out.stride(0),             # Stride for C (output)
+            BLOCK_SIZE_K=BLOCK_SIZE_K
+        )
+        return out
+```
+
+### Diagnostic Failure Information
+**Failure Category**: `compilation_error`
+
+**Error Type**: `triton.compiler.errors.CompilationError`
+
+**Error Message**:
+```
+at 54:4:
+        b_ptrs = B_vec_ptr + (k_idx + tl.arange(0, BLOCK_SIZE_K)) * stride_bk
+        b_block = tl.load(b_ptrs, mask=(k_idx + tl.arange(0, BLOCK_SIZE_K)) < K, other=0.0)
+
+        # Perform...
+```
+
+**Traceback**:
+```
+Traceback (most recent call last):
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py", line 43, in wrapper
+    return fn(*args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py", line 2610, in store
+    return _semantic.store(pointer, value, mask, boundary_check, cache_modifier, eviction_policy)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/language/semantic.py", line 1225, in store
+    raise ValueError("Value argument cannot be block type if pointer argument is not a block")
+ValueError: Value argument cannot be block type if pointer argument is not a block
+
+The above exception was the direct cause of the following exception:
+
+Traceback (most recent call last):
+  File "/root/src/kernelbench/eval.py", line 782, in run_and_check_correctness
+    output_new = model_new(*inputs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/tmp/tmpc2zt9n03.py", line 133, in forward
+    fused_dot_product_scale_kernel[grid](
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 374, in <lambda>
+    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 757, in run
+    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 902, in _do_compile
+    kernel = self.compile(src, target=target, options=options.__dict__)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 307, in compile
+    module = src.make_ir(target, options, codegen_fns, module_map, context)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 80, in make_ir
+    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,
+triton.compiler.errors.CompilationError: at 54:4:
+        b_ptrs = B_vec_ptr + (k_idx + tl.arange(0, BLOCK_SIZE_K)) * stride_bk
+        b_block = tl.load(b_ptrs, mask=(k_idx + tl.arange(0, BLOCK_SIZE_K)) < K, other=0.0)
+
+        # Perform element-wise multiplication and sum reduction
+        acc += tl.sum(a_block * b_block)
+
+    # Apply the combined scalar factor
+    final_output = acc * scalar_factor
+
+    # Store the result in the output tensor C
+    c_ptrs = C_ptr + m * stride_cm
+    tl.store(c_ptrs, final_output)
+    ^
+Value argument cannot be block type if pointer argument is not a block
+
+```
+
+### Triton Pitfall Guards & Implementation Constraints
+1. **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or a rational approximation.
+2. **Mish / GELU / Exponentials**: float32 exponentials easily overflow into NaN. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+3. **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+4. **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
+5. **Interface Preservation**: Retain the exact `ModelNew` class interface and function signature matching reference PyTorch `Model`.
+6. **Output Format**: Only output valid Python code enclosed in ```python ... ```.
+
+Please provide the corrected Python code defining `ModelNew` that fixes the error and matches the reference output.
+Output only the Python code within ```python ... ``` code block.

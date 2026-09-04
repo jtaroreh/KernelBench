@@ -1,0 +1,119 @@
+You are an expert GPU kernel engineer tasked with repairing a failing Triton kernel for Gemini 3.8 Flash.
+Problem: 75_Gemm_GroupNorm_Min_BiasAdd
+
+The previous implementation failed during compilation, execution, or numerical verification against the reference PyTorch implementation.
+Your goal is to inspect the error, identify the root cause, and produce a fully functional, bitwise-accurate, high-performance Triton kernel implementation in `ModelNew`.
+
+### Reference PyTorch Architecture
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    Model that performs a GEMM, Group Normalization, Minimum operation, and Bias addition.
+    """
+    def __init__(self, in_features, out_features, num_groups, bias_shape):
+        super(Model, self).__init__()
+        self.gemm = nn.Linear(in_features, out_features)
+        self.group_norm = nn.GroupNorm(num_groups, out_features)
+        self.bias = nn.Parameter(torch.randn(bias_shape))
+
+    def forward(self, x):
+        x = self.gemm(x)
+        x = self.group_norm(x)
+        x = torch.min(x, dim=1, keepdim=True)[0] 
+        x = x + self.bias
+        return x
+
+batch_size = 1024
+in_features = 8192
+out_features = 8192
+num_groups = 512
+bias_shape = (1, out_features, 1, 1)
+
+def get_inputs():
+    return [torch.rand(batch_size, in_features)]
+
+def get_init_inputs():
+    return [in_features, out_features, num_groups, bias_shape]
+```
+
+### Previous Failing Implementation
+```python
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+@triton.jit
+def fused_norm_min_bias_kernel(
+    x_ptr, bias_ptr, out_ptr,
+    N, C, G,
+    BLOCK_SIZE: tl.constexpr,
+):
+    # This kernel fuses GroupNorm (simplified), Min reduction, and Bias addition.
+    # Note: For production, GroupNorm requires mean/var calculation. 
+    # Here we implement the logic flow requested for the specific architecture.
+    pid = tl.program_id(0)
+    
+    # Load row
+    offsets = pid * C + tl.arange(0, BLOCK_SIZE)
+    mask = tl.arange(0, BLOCK_SIZE) < C
+    x = tl.load(x_ptr + offsets, mask=mask, other=0.0)
+    
+    # Group Norm (Simplified for demonstration of fusion)
+    # In a real scenario, we would compute group statistics here
+    x = x / (tl.sqrt(tl.sum(x * x) / C + 1e-5))
+    
+    # Min reduction
+    min_val = tl.min(x)
+    
+    # Bias addition (Broadcasting)
+    # Since bias_shape is (1, out_features, 1, 1), we add to the scalar result
+    bias = tl.load(bias_ptr)
+    tl.store(out_ptr + pid, min_val + bias)
+
+class ModelNew(nn.Module):
+    def __init__(self, in_features, out_features, num_groups, bias_shape) -> None:
+        super().__init__()
+        self.gemm = nn.Linear(in_features, out_features)
+        self.bias = nn.Parameter(torch.randn(bias_shape))
+        self.num_groups = num_groups
+        self.out_features = out_features
+
+    def forward(self, x):
+        # GEMM remains standard as it's highly optimized in cuBLAS
+        x = self.gemm(x)
+        
+        # Fused kernel for GroupNorm + Min + Bias
+        batch_size = x.shape[0]
+        out = torch.empty((batch_size, 1), device=x.device)
+        
+        def grid(meta):
+            return (batch_size,)
+
+        fused_norm_min_bias_kernel[grid](
+            x, self.bias, out,
+            batch_size, self.out_features, self.num_groups,
+            BLOCK_SIZE=triton.next_power_of_2(self.out_features)
+        )
+        return out
+```
+
+### Diagnostic Failure Information
+**Failure Category**: `shape_mismatch`
+
+**Numerical / Correctness Details**:
+- Correctness Issue: Output shape mismatch: Expected torch.Size([1, 8192, 1024, 1]), got torch.Size([1024, 1])
+
+### Triton Pitfall Guards & Implementation Constraints
+1. **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or a rational approximation.
+2. **Mish / GELU / Exponentials**: float32 exponentials easily overflow into NaN. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+3. **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+4. **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
+5. **Interface Preservation**: Retain the exact `ModelNew` class interface and function signature matching reference PyTorch `Model`.
+6. **Output Format**: Only output valid Python code enclosed in ```python ... ```.
+
+Please provide the corrected Python code defining `ModelNew` that fixes the error and matches the reference output.
+Output only the Python code within ```python ... ``` code block.

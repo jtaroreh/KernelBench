@@ -1,0 +1,195 @@
+You are an expert GPU kernel engineer tasked with repairing a failing Triton kernel for Gemini 3.8 Flash.
+Problem: 82_Conv2d_Tanh_Scaling_BiasAdd_Max
+
+The previous implementation failed during compilation, execution, or numerical verification against the reference PyTorch implementation.
+Your goal is to inspect the error, identify the root cause, and produce a fully functional, bitwise-accurate, high-performance Triton kernel implementation in `ModelNew`.
+
+### Reference PyTorch Architecture
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    A model that performs a convolution, applies tanh, scaling, adds a bias term, and then max-pools.
+    """
+    def __init__(self, in_channels, out_channels, kernel_size, scaling_factor, bias_shape, pool_kernel_size):
+        super(Model, self).__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size)
+        self.scaling_factor = scaling_factor
+        self.bias = nn.Parameter(torch.randn(bias_shape))
+        self.max_pool = nn.MaxPool2d(pool_kernel_size)
+
+    def forward(self, x):
+        # Convolution
+        x = self.conv(x)
+        # Tanh activation
+        x = torch.tanh(x)
+        # Scaling
+        x = x * self.scaling_factor
+        # Bias addition
+        x = x + self.bias
+        # Max-pooling
+        x = self.max_pool(x)
+        return x
+
+batch_size = 128
+in_channels = 8
+out_channels = 64
+height, width = 256, 256
+kernel_size = 3
+scaling_factor = 2.0
+bias_shape = (out_channels, 1, 1)
+pool_kernel_size = 4
+
+def get_inputs():
+    return [torch.rand(batch_size, in_channels, height, width)]
+
+def get_init_inputs():
+    return [in_channels, out_channels, kernel_size, scaling_factor, bias_shape, pool_kernel_size]
+```
+
+### Previous Failing Implementation
+```python
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+@triton.jit
+def fused_activation_bias_pool_kernel(
+    x_ptr, out_ptr, bias_ptr,
+    batch, channels, height, width,
+    out_h, out_w,
+    scaling_factor,
+    pool_size: tl.constexpr,
+    BLOCK_H: tl.constexpr, BLOCK_W: tl.constexpr,
+):
+    # Grid: (batch * channels, out_h, out_w)
+    pid_bc = tl.program_id(0)
+    pid_h = tl.program_id(1)
+    pid_w = tl.program_id(2)
+
+    # Calculate base pointers
+    b = pid_bc // channels
+    c = pid_bc % channels
+    
+    # Load bias
+    bias = tl.load(bias_ptr + c)
+
+    # Max pooling logic
+    max_val = -float('inf')
+    
+    # Iterate over pool window
+    for ph in range(pool_size):
+        for pw in range(pool_size):
+            h_in = pid_h * pool_size + ph
+            w_in = pid_w * pool_size + pw
+            
+            idx = ((b * channels + c) * height + h_in) * width + w_in
+            val = tl.load(x_ptr + idx)
+            
+            # Apply Tanh, Scaling, and Bias
+            val = tl.tanh(val) * scaling_factor + bias
+            
+            max_val = tl.maximum(max_val, val)
+
+    # Store result
+    out_idx = ((b * channels + c) * out_h + pid_h) * out_w + pid_w
+    tl.store(out_ptr + out_idx, max_val)
+
+class ModelNew(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, scaling_factor, bias_shape, pool_kernel_size):
+        super(ModelNew, self).__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size)
+        self.scaling_factor = scaling_factor
+        self.bias = nn.Parameter(torch.randn(bias_shape))
+        self.pool_size = pool_kernel_size
+
+    def forward(self, x):
+        x = self.conv(x)
+        
+        batch, channels, h, w = x.shape
+        out_h, out_w = h // self.pool_size, w // self.pool_size
+        out = torch.empty((batch, channels, out_h, out_w), device=x.device)
+        
+        grid = (batch * channels, out_h, out_w)
+        
+        fused_activation_bias_pool_kernel[grid](
+            x, out, self.bias.squeeze(),
+            batch, channels, h, w,
+            out_h, out_w,
+            self.scaling_factor,
+            pool_size=self.pool_size,
+            BLOCK_H=1, BLOCK_W=1
+        )
+        return out
+```
+
+### Diagnostic Failure Information
+**Failure Category**: `missing_triton_attribute`
+
+**Error Type**: `triton.compiler.errors.CompilationError`
+
+**Error Message**:
+```
+at 34:18:
+
+    # Iterate over pool window
+    for ph in range(pool_size):
+        for pw in range(pool_size):
+            h_in = pid_h * pool_size + ph
+            w_in = pid_w * pool_size + pw
+
+  ...
+```
+
+**Traceback**:
+```
+Traceback (most recent call last):
+  File "/root/src/kernelbench/eval.py", line 782, in run_and_check_correctness
+    output_new = model_new(*inputs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/tmp/tmpn2xlnjwu.py", line 65, in forward
+    fused_activation_bias_pool_kernel[grid](
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 374, in <lambda>
+    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 757, in run
+    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 902, in _do_compile
+    kernel = self.compile(src, target=target, options=options.__dict__)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 307, in compile
+    module = src.make_ir(target, options, codegen_fns, module_map, context)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 80, in make_ir
+    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,
+triton.compiler.errors.CompilationError: at 34:18:
+
+    # Iterate over pool window
+    for ph in range(pool_size):
+        for pw in range(pool_size):
+            h_in = pid_h * pool_size + ph
+            w_in = pid_w * pool_size + pw
+
+            idx = ((b * channels + c) * height + h_in) * width + w_in
+            val = tl.load(x_ptr + idx)
+
+            # Apply Tanh, Scaling, and Bias
+            val = tl.tanh(val) * scaling_factor + bias
+                  ^
+AttributeError("module 'triton.language' has no attribute 'tanh'")
+
+```
+
+### Triton Pitfall Guards & Implementation Constraints
+1. **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or a rational approximation.
+2. **Mish / GELU / Exponentials**: float32 exponentials easily overflow into NaN. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+3. **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+4. **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
+5. **Interface Preservation**: Retain the exact `ModelNew` class interface and function signature matching reference PyTorch `Model`.
+6. **Output Format**: Only output valid Python code enclosed in ```python ... ```.
+
+Please provide the corrected Python code defining `ModelNew` that fixes the error and matches the reference output.
+Output only the Python code within ```python ... ``` code block.

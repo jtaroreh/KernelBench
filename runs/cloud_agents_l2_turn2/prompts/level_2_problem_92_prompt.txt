@@ -1,0 +1,211 @@
+You are an expert GPU kernel engineer tasked with repairing a failing Triton kernel for Gemini 3.8 Flash.
+Problem: 92_Conv2d_GroupNorm_Tanh_HardSwish_ResidualAdd_LogSumExp
+
+The previous implementation failed during compilation, execution, or numerical verification against the reference PyTorch implementation.
+Your goal is to inspect the error, identify the root cause, and produce a fully functional, bitwise-accurate, high-performance Triton kernel implementation in `ModelNew`.
+
+### Reference PyTorch Architecture
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    Model that performs a convolution, applies Group Normalization, Tanh, HardSwish, 
+    Residual Addition, and LogSumExp.
+    """
+    def __init__(self, in_channels, out_channels, kernel_size, groups, eps=1e-5):
+        super(Model, self).__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size)
+        self.group_norm = nn.GroupNorm(groups, out_channels, eps=eps)
+        self.tanh = nn.Tanh()
+        self.hard_swish = nn.Hardswish()
+
+    def forward(self, x):
+        # Convolution
+        x_conv = self.conv(x)
+        # Group Normalization
+        x_norm = self.group_norm(x_conv)
+        # Tanh
+        x_tanh = self.tanh(x_norm)
+        # HardSwish
+        x_hard_swish = self.hard_swish(x_tanh)
+        # Residual Addition
+        x_res = x_conv + x_hard_swish
+        # LogSumExp
+        x_logsumexp = torch.logsumexp(x_res, dim=1, keepdim=True)
+        return x_logsumexp
+
+batch_size = 128
+in_channels = 8
+out_channels = 64
+height, width = 128, 128
+kernel_size = 3
+groups = 16
+
+def get_inputs():
+    return [torch.rand(batch_size, in_channels, height, width)]
+
+def get_init_inputs():
+    return [in_channels, out_channels, kernel_size, groups]
+```
+
+### Previous Failing Implementation
+```python
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+@triton.jit
+def fused_norm_act_res_lse_kernel(
+    x_conv_ptr, x_norm_ptr, out_ptr,
+    num_groups, num_channels, spatial_size, eps,
+    BLOCK_SIZE: tl.constexpr,
+):
+    # This kernel fuses: GroupNorm -> Tanh -> HardSwish -> Residual Add -> LogSumExp
+    # We process one spatial location (H*W) per program across the channel dimension
+    pid = tl.program_id(0)
+    
+    # Calculate channel offsets
+    channels_per_group = num_channels // num_groups
+    group_idx = pid // channels_per_group
+    
+    # Load x_conv (residual)
+    x_conv = tl.load(x_conv_ptr + pid)
+    
+    # Load x_norm (pre-computed GroupNorm output)
+    x_norm = tl.load(x_norm_ptr + pid)
+    
+    # Tanh
+    x_tanh = tl.tanh(x_norm)
+    
+    # HardSwish: x * relu6(x + 3) / 6
+    x_hs = x_tanh * tl.minimum(tl.maximum(x_tanh + 3.0, 0.0), 6.0) / 6.0
+    
+    # Residual Add
+    res = x_conv + x_hs
+    
+    # Store intermediate for LogSumExp reduction
+    tl.store(out_ptr + pid, res)
+
+@triton.jit
+def lse_reduce_kernel(
+    res_ptr, out_ptr,
+    num_channels, spatial_size,
+    BLOCK_SIZE: tl.constexpr,
+):
+    # Reduce across channels: log(sum(exp(x)))
+    pid = tl.program_id(0)
+    
+    max_val = -float('inf')
+    for i in range(num_channels):
+        val = tl.load(res_ptr + pid + i * spatial_size)
+        max_val = tl.maximum(max_val, val)
+    
+    sum_exp = 0.0
+    for i in range(num_channels):
+        val = tl.load(res_ptr + pid + i * spatial_size)
+        sum_exp += tl.exp(val - max_val)
+    
+    res = max_val + tl.log(sum_exp)
+    tl.store(out_ptr + pid, res)
+
+class ModelNew(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, groups, eps=1e-5) -> None:
+        super().__init__()
+        self.conv = nn.Conv2d(in_channels, out_channels, kernel_size, padding=kernel_size//2)
+        self.group_norm = nn.GroupNorm(groups, out_channels, eps=eps)
+        self.groups = groups
+        self.out_channels = out_channels
+
+    def forward(self, x):
+        x_conv = self.conv(x)
+        x_norm = self.group_norm(x_conv)
+        
+        B, C, H, W = x_conv.shape
+        spatial = H * W
+        
+        # Fused kernel for Tanh, HardSwish, and Residual
+        res = torch.empty_like(x_conv)
+        grid = (B * C * spatial,)
+        fused_norm_act_res_lse_kernel[grid](
+            x_conv, x_norm, res,
+            self.groups, C, spatial, 1e-5, BLOCK_SIZE=1
+        )
+        
+        # LogSumExp reduction
+        out = torch.empty(B, 1, H, W, device=x.device)
+        grid_lse = (B * spatial,)
+        lse_reduce_kernel[grid_lse](
+            res, out, C, spatial, BLOCK_SIZE=1
+        )
+        
+        return out
+```
+
+### Diagnostic Failure Information
+**Failure Category**: `missing_triton_attribute`
+
+**Error Type**: `triton.compiler.errors.CompilationError`
+
+**Error Message**:
+```
+at 21:13:
+    # Calculate channel offsets
+    channels_per_group = num_channels // num_groups
+    group_idx = pid // channels_per_group
+
+    # Load x_conv (residual)
+    x_conv = tl.load(x_conv_ptr...
+```
+
+**Traceback**:
+```
+Traceback (most recent call last):
+  File "/root/src/kernelbench/eval.py", line 782, in run_and_check_correctness
+    output_new = model_new(*inputs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/tmp/tmp6dvcynn7.py", line 78, in forward
+    fused_norm_act_res_lse_kernel[grid](
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 374, in <lambda>
+    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 757, in run
+    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 902, in _do_compile
+    kernel = self.compile(src, target=target, options=options.__dict__)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 307, in compile
+    module = src.make_ir(target, options, codegen_fns, module_map, context)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 80, in make_ir
+    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,
+triton.compiler.errors.CompilationError: at 21:13:
+    # Calculate channel offsets
+    channels_per_group = num_channels // num_groups
+    group_idx = pid // channels_per_group
+
+    # Load x_conv (residual)
+    x_conv = tl.load(x_conv_ptr + pid)
+
+    # Load x_norm (pre-computed GroupNorm output)
+    x_norm = tl.load(x_norm_ptr + pid)
+
+    # Tanh
+    x_tanh = tl.tanh(x_norm)
+             ^
+AttributeError("module 'triton.language' has no attribute 'tanh'")
+
+```
+
+### Triton Pitfall Guards & Implementation Constraints
+1. **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or a rational approximation.
+2. **Mish / GELU / Exponentials**: float32 exponentials easily overflow into NaN. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+3. **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+4. **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
+5. **Interface Preservation**: Retain the exact `ModelNew` class interface and function signature matching reference PyTorch `Model`.
+6. **Output Format**: Only output valid Python code enclosed in ```python ... ```.
+
+Please provide the corrected Python code defining `ModelNew` that fixes the error and matches the reference output.
+Output only the Python code within ```python ... ``` code block.

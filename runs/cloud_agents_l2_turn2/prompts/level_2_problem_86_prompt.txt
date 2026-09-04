@@ -1,0 +1,185 @@
+You are an expert GPU kernel engineer tasked with repairing a failing Triton kernel for Gemini 3.8 Flash.
+Problem: 86_Matmul_Divide_GELU
+
+The previous implementation failed during compilation, execution, or numerical verification against the reference PyTorch implementation.
+Your goal is to inspect the error, identify the root cause, and produce a fully functional, bitwise-accurate, high-performance Triton kernel implementation in `ModelNew`.
+
+### Reference PyTorch Architecture
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    A model that performs a matrix multiplication, divides by a scalar, and applies GELU activation.
+    """
+    def __init__(self, input_size, output_size, divisor):
+        super(Model, self).__init__()
+        self.linear = nn.Linear(input_size, output_size)
+        self.divisor = divisor
+
+    def forward(self, x):
+        """
+        Args:
+            x (torch.Tensor): Input tensor of shape (batch_size, input_size).
+        Returns:
+            torch.Tensor: Output tensor of shape (batch_size, output_size).
+        """
+        x = self.linear(x)
+        x = x / self.divisor
+        x = torch.nn.functional.gelu(x)
+        return x
+
+batch_size = 1024
+input_size = 8192
+output_size = 8192
+divisor = 10.0
+
+def get_inputs():
+    return [torch.rand(batch_size, input_size)]
+
+def get_init_inputs():
+    return [input_size, output_size, divisor]
+```
+
+### Previous Failing Implementation
+```python
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+@triton.jit
+def matmul_div_gelu_kernel(
+    A, B, Bias, Out,
+    M, N, K,
+    stride_am, stride_ak,
+    stride_bn, stride_bk,
+    stride_om, stride_on,
+    divisor: tl.constexpr,
+    BLOCK_SIZE_M: tl.constexpr, BLOCK_SIZE_N: tl.constexpr, BLOCK_SIZE_K: tl.constexpr,
+):
+    pid_m = tl.program_id(0)
+    pid_n = tl.program_id(1)
+
+    rm = pid_m * BLOCK_SIZE_M + tl.arange(0, BLOCK_SIZE_M)
+    rn = pid_n * BLOCK_SIZE_N + tl.arange(0, BLOCK_SIZE_N)
+    rk = tl.arange(0, BLOCK_SIZE_K)
+
+    A_ptr = A + (rm[:, None] * stride_am + rk[None, :] * stride_ak)
+    B_ptr = B + (rk[:, None] * stride_bk + rn[None, :] * stride_bn)
+
+    acc = tl.zeros((BLOCK_SIZE_M, BLOCK_SIZE_N), dtype=tl.float32)
+    for k in range(0, K, BLOCK_SIZE_K):
+        a = tl.load(A_ptr)
+        b = tl.load(B_ptr)
+        acc += tl.dot(a, b)
+        A_ptr += BLOCK_SIZE_K * stride_ak
+        B_ptr += BLOCK_SIZE_K * stride_bk
+
+    if Bias is not None:
+        bias = tl.load(Bias + rn)
+        acc += bias[None, :]
+
+    # Apply division and GELU
+    acc = acc / divisor
+    # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+    cdf = 0.5 * (1.0 + tl.tanh(0.79788456 * (acc + 0.044715 * acc * acc * acc)))
+    acc = acc * cdf
+
+    tl.store(Out + (rm[:, None] * stride_om + rn[None, :] * stride_on), acc)
+
+class ModelNew(nn.Module):
+    def __init__(self, input_size, output_size, divisor):
+        super(ModelNew, self).__init__()
+        self.linear = nn.Linear(input_size, output_size)
+        self.divisor = divisor
+
+    def forward(self, x):
+        M, K = x.shape
+        N = self.linear.weight.shape[0]
+        
+        out = torch.empty((M, N), device=x.device, dtype=x.dtype)
+        
+        # Grid configuration
+        BLOCK_SIZE_M, BLOCK_SIZE_N, BLOCK_SIZE_K = 64, 64, 32
+        grid = (triton.cdiv(M, BLOCK_SIZE_M), triton.cdiv(N, BLOCK_SIZE_N))
+        
+        matmul_div_gelu_kernel[grid](
+            x, self.linear.weight.t(), self.linear.bias, out,
+            M, N, K,
+            x.stride(0), x.stride(1),
+            self.linear.weight.stride(0), self.linear.weight.stride(1),
+            out.stride(0), out.stride(1),
+            self.divisor,
+            BLOCK_SIZE_M, BLOCK_SIZE_N, BLOCK_SIZE_K
+        )
+        return out
+```
+
+### Diagnostic Failure Information
+**Failure Category**: `missing_triton_attribute`
+
+**Error Type**: `triton.compiler.errors.CompilationError`
+
+**Error Message**:
+```
+at 35:23:
+        acc += tl.dot(a, b)
+        A_ptr += BLOCK_SIZE_K * stride_ak
+        B_ptr += BLOCK_SIZE_K * stride_bk
+
+    if Bias is not None:
+        bias = tl.load(Bias + rn)
+        acc += ...
+```
+
+**Traceback**:
+```
+Traceback (most recent call last):
+  File "/root/src/kernelbench/eval.py", line 782, in run_and_check_correctness
+    output_new = model_new(*inputs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1783, in _wrapped_call_impl
+    return self._call_impl(*args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py", line 1794, in _call_impl
+    return forward_call(*args, **kwargs)
+  File "/tmp/tmpxyon9qa_.py", line 62, in forward
+    matmul_div_gelu_kernel[grid](
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 374, in <lambda>
+    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 757, in run
+    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py", line 902, in _do_compile
+    kernel = self.compile(src, target=target, options=options.__dict__)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 307, in compile
+    module = src.make_ir(target, options, codegen_fns, module_map, context)
+  File "/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py", line 80, in make_ir
+    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,
+triton.compiler.errors.CompilationError: at 35:23:
+        acc += tl.dot(a, b)
+        A_ptr += BLOCK_SIZE_K * stride_ak
+        B_ptr += BLOCK_SIZE_K * stride_bk
+
+    if Bias is not None:
+        bias = tl.load(Bias + rn)
+        acc += bias[None, :]
+
+    # Apply division and GELU
+    acc = acc / divisor
+    # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))
+    cdf = 0.5 * (1.0 + tl.tanh(0.79788456 * (acc + 0.044715 * acc * acc * acc)))
+                       ^
+AttributeError("module 'triton.language' has no attribute 'tanh'")
+
+```
+
+### Triton Pitfall Guards & Implementation Constraints
+1. **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or a rational approximation.
+2. **Mish / GELU / Exponentials**: float32 exponentials easily overflow into NaN. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+3. **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+4. **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
+5. **Interface Preservation**: Retain the exact `ModelNew` class interface and function signature matching reference PyTorch `Model`.
+6. **Output Format**: Only output valid Python code enclosed in ```python ... ```.
+
+Please provide the corrected Python code defining `ModelNew` that fixes the error and matches the reference output.
+Output only the Python code within ```python ... ``` code block.

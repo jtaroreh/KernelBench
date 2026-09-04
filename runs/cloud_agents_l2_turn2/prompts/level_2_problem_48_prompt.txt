@@ -1,0 +1,128 @@
+You are an expert GPU kernel engineer tasked with repairing a failing Triton kernel for Gemini 3.8 Flash.
+Problem: 48_Conv3d_Scaling_Tanh_Multiply_Sigmoid
+
+The previous implementation failed during compilation, execution, or numerical verification against the reference PyTorch implementation.
+Your goal is to inspect the error, identify the root cause, and produce a fully functional, bitwise-accurate, high-performance Triton kernel implementation in `ModelNew`.
+
+### Reference PyTorch Architecture
+```python
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    Model that performs a 3D convolution, scales the output, applies tanh, multiplies by a scaling factor, and applies sigmoid.
+    """
+    def __init__(self, in_channels, out_channels, kernel_size, scaling_factor, bias_shape):
+        super(Model, self).__init__()
+        self.conv = nn.Conv3d(in_channels, out_channels, kernel_size)
+        self.scaling_factor = nn.Parameter(torch.randn(bias_shape))
+        self.bias = nn.Parameter(torch.randn(bias_shape)) 
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = x * self.scaling_factor 
+        x = torch.tanh(x)
+        x = x * self.bias
+        x = torch.sigmoid(x)
+        return x
+
+batch_size = 128
+in_channels = 3
+out_channels = 16
+depth, height, width = 16, 64, 64
+kernel_size = 3
+scaling_factor = 2
+bias_shape = (out_channels, 1, 1, 1)
+
+def get_inputs():
+    return [torch.rand(batch_size, in_channels, depth, height, width)]
+
+def get_init_inputs():
+    return [in_channels, out_channels, kernel_size, scaling_factor, bias_shape]
+```
+
+### Previous Failing Implementation
+```python
+import torch
+import torch.nn as nn
+import triton
+import triton.language as tl
+
+@triton.jit
+def fused_activation_kernel(
+    x_ptr, scale_ptr, bias_ptr, out_ptr,
+    n_elements,
+    BLOCK_SIZE: tl.constexpr,
+):
+    pid = tl.program_id(0)
+    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)
+    mask = offsets < n_elements
+    
+    # Load input
+    x = tl.load(x_ptr + offsets, mask=mask)
+    
+    # We assume the scaling and bias are broadcastable along the channel dimension
+    # For simplicity in this kernel, we assume the input is [N, C, D, H, W]
+    # and we perform the operation element-wise.
+    # In a real scenario, one would pass the channel index to load scale/bias.
+    # Here we assume the tensors are flattened or handled via broadcasting logic.
+    scale = tl.load(scale_ptr, mask=True)
+    bias = tl.load(bias_ptr, mask=True)
+    
+    # Fused: x * scale -> tanh -> * bias -> sigmoid
+    x = x * scale
+    x = tl.tanh(x)
+    x = x * bias
+    x = tl.sigmoid(x)
+    
+    tl.store(out_ptr + offsets, x, mask=mask)
+
+def triton_fused_activation(x: torch.Tensor, scale: torch.Tensor, bias: torch.Tensor):
+    out = torch.empty_like(x)
+    n_elements = x.numel()
+    BLOCK_SIZE = 1024
+    grid = (triton.cdiv(n_elements, BLOCK_SIZE),)
+    
+    # Note: This implementation assumes scale/bias are scalars or broadcasted correctly.
+    # For complex broadcasting, one would typically use tl.broadcast_to or specific indexing.
+    fused_activation_kernel[grid](x, scale, bias, out, n_elements, BLOCK_SIZE=BLOCK_SIZE)
+    return out
+
+class ModelNew(nn.Module):
+    def __init__(self, in_channels, out_channels, kernel_size, scaling_factor, bias_shape) -> None:
+        super().__init__()
+        self.conv = nn.Conv3d(in_channels, out_channels, kernel_size)
+        self.scaling_factor = nn.Parameter(torch.full(bias_shape, float(scaling_factor)))
+        self.bias = nn.Parameter(torch.randn(bias_shape))
+
+    def forward(self, x):
+        x = self.conv(x)
+        # We use the fused kernel for the post-conv operations
+        # To handle the channel-wise broadcasting, we ensure inputs are contiguous
+        # and use the fused kernel.
+        x = x * self.scaling_factor
+        x = torch.tanh(x)
+        x = x * self.bias
+        x = torch.sigmoid(x)
+        return x
+```
+
+### Diagnostic Failure Information
+**Failure Category**: `numerical_mismatch`
+
+**Numerical / Correctness Details**:
+- Max Difference: ['0.517695']
+- Avg Difference: ['0.127468']
+- Correctness Issue: Output mismatch
+
+### Triton Pitfall Guards & Implementation Constraints
+1. **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or a rational approximation.
+2. **Mish / GELU / Exponentials**: float32 exponentials easily overflow into NaN. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+3. **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+4. **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
+5. **Interface Preservation**: Retain the exact `ModelNew` class interface and function signature matching reference PyTorch `Model`.
+6. **Output Format**: Only output valid Python code enclosed in ```python ... ```.
+
+Please provide the corrected Python code defining `ModelNew` that fixes the error and matches the reference output.
+Output only the Python code within ```python ... ``` code block.
