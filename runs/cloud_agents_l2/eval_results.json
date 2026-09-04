@@ -1,0 +1,1915 @@
+{
+    "1": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 11.5,
+            "runtime_stats": {
+                "mean": 11.5,
+                "std": 0.0261,
+                "min": 11.5,
+                "max": 11.5,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "2": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 30.4,
+            "runtime_stats": {
+                "mean": 30.4,
+                "std": 0.935,
+                "min": 29.9,
+                "max": 32.3,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "3": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "dynamic_func() missing 5 required positional arguments: 'stride_out_c', 'stride_out_d', 'stride_out_h', 'stride_out_w', and 'eps'",
+                "runtime_error_name": "builtins.TypeError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpms7bvfxc.py\", line 169, in forward\n    x = triton_fused_add_layernorm_gelu(\n  File \"/tmp/tmpms7bvfxc.py\", line 141, in triton_fused_add_layernorm_gelu\n    fused_add_layernorm_gelu_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 741, in run\n    bound_args, specialization, options = binder(*args, **kwargs)\nTypeError: dynamic_func() missing 5 required positional arguments: 'stride_out_c', 'stride_out_d', 'stride_out_h', 'stride_out_w', and 'eps'\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "4": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 28:22:\n    mask = offsets < n_elements\n\n    # Load input values, ensuring FP32 precision\n    x = tl.load(x_ptr + offsets, mask=mask, other=0.0).to(tl.float32)\n\n    # First Mish activation: y = x...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpml5qn8uj.py\", line 98, in forward\n    x = triton_double_mish(x)\n  File \"/tmp/tmpml5qn8uj.py\", line 78, in triton_double_mish\n    double_mish_kernel[grid](x, out, n_elements, BLOCK_SIZE=BLOCK_SIZE)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 28:22:\n    mask = offsets < n_elements\n\n    # Load input values, ensuring FP32 precision\n    x = tl.load(x_ptr + offsets, mask=mask, other=0.0).to(tl.float32)\n\n    # First Mish activation: y = x * tanh(softplus(x))\n    # Compute exp(x)\n    exp_x = tl.exp(x)\n    # Compute softplus(x) = log(1 + exp(x))\n    softplus_x = tl.log(1.0 + exp_x)\n    # Compute tanh(softplus(x))\n    tanh_softplus_x = tl.tanh(softplus_x)\n                      ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "5": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 55:10:\n    x_ptrs = x_ptr + idx_b * STRIDE_X_B + idx_c * STRIDE_X_C + idx_h * STRIDE_X_H + idx_w * STRIDE_X_W\n    # Bias is (C,1,1), so its value only depends on the channel index\n    bias_ptrs ...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp88l8ty1d.py\", line 133, in forward\n    x = triton_subtract_bias_tanh(x, self.bias)\n  File \"/tmp/tmp88l8ty1d.py\", line 108, in triton_subtract_bias_tanh\n    subtract_bias_tanh_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 55:10:\n    x_ptrs = x_ptr + idx_b * STRIDE_X_B + idx_c * STRIDE_X_C + idx_h * STRIDE_X_H + idx_w * STRIDE_X_W\n    # Bias is (C,1,1), so its value only depends on the channel index\n    bias_ptrs = bias_ptr + idx_c * STRIDE_BIAS_C\n    out_ptrs = out_ptr + idx_b * STRIDE_OUT_B + idx_c * STRIDE_OUT_C + idx_h * STRIDE_OUT_H + idx_w * STRIDE_OUT_W\n\n    # Load values from memory\n    x = tl.load(x_ptrs, mask=mask, other=0.0)\n    bias_val = tl.load(bias_ptrs, mask=mask, other=0.0)\n\n    # Perform the fused operations: subtract bias, then apply tanh\n    subtracted = x - bias_val\n    out = tl.tanh(subtracted)\n          ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "6": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 42:20:\n    # This assumes the window is always valid and not empty.\n    max_val = tl.load(input_ptr + b * stride_b_in + c * stride_c_in +\n                      d_in_start * stride_d_in + h_in_st...",
+                "runtime_error_name": "triton.compiler.errors.UnsupportedLanguageConstruct",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp88psqo1r.py\", line 228, in forward\n    x = triton_max_pool3d(x, self.pool_kernel_size, self.pool_stride)\n  File \"/tmp/tmp88psqo1r.py\", line 192, in triton_max_pool3d\n    max_pool3d_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.UnsupportedLanguageConstruct: at 42:20:\n    # This assumes the window is always valid and not empty.\n    max_val = tl.load(input_ptr + b * stride_b_in + c * stride_c_in +\n                      d_in_start * stride_d_in + h_in_start * stride_h_in +\n                      w_in_start * stride_w_in)\n\n    # Iterate over the pooling window (kernel_size x kernel_size x kernel_size)\n    for kd in tl.static_range(kernel_size):\n        for kh in tl.static_range(kernel_size):\n            for kw in tl.static_range(kernel_size):\n                # Skip the first element as it's already loaded\n                if kd == 0 and kh == 0 and kw == 0:\n                    continue\n                    ^\nunsupported AST node type: Continue\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "7": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 12.2,
+            "runtime_stats": {
+                "mean": 12.2,
+                "std": 0.552,
+                "min": 12.0,
+                "max": 13.4,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "8": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 5.5,
+            "runtime_stats": {
+                "mean": 5.5,
+                "std": 0.161,
+                "min": 5.36,
+                "max": 5.7,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "9": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 3.51,
+            "runtime_stats": {
+                "mean": 3.51,
+                "std": 0.0125,
+                "min": 3.5,
+                "max": 3.53,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "10": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 55:15:\n        # Accumulate the hardtanh-activated values\n        # Only add valid elements (where mask is true)\n        acc += tl.where(mask, hardtanh_block, 0.0)\n\n    # Perform reduction acros...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmplb62kbrm.py\", line 141, in forward\n    x = triton_hardtanh_mean_tanh(x, self.hardtanh_min, self.hardtanh_max)\n  File \"/tmp/tmplb62kbrm.py\", line 102, in triton_hardtanh_mean_tanh\n    hardtanh_mean_tanh_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 55:15:\n        # Accumulate the hardtanh-activated values\n        # Only add valid elements (where mask is true)\n        acc += tl.where(mask, hardtanh_block, 0.0)\n\n    # Perform reduction across the accumulated blocks to get the total sum for the slice\n    total_sum = tl.sum(acc, axis=0)\n\n    # Calculate the mean\n    mean_val = total_sum / num_elements_per_slice\n\n    # Apply Tanh activation\n    tanh_val = tl.tanh(mean_val)\n               ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "11": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 50:10:\n    # Mask to ensure we don't go out of bounds for H*W\n    mask_hw = offsets_hw < num_hw_elements\n\n    # Load input values for the current block\n    x = tl.load(x_base_ptr + offsets_hw, m...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp2wk1hyhj.py\", line 320, in forward\n    x = triton_batchnorm_tanh(x, self.batch_norm)\n  File \"/tmp/tmp2wk1hyhj.py\", line 91, in triton_batchnorm_tanh\n    _batchnorm_tanh_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 50:10:\n    # Mask to ensure we don't go out of bounds for H*W\n    mask_hw = offsets_hw < num_hw_elements\n\n    # Load input values for the current block\n    x = tl.load(x_base_ptr + offsets_hw, mask=mask_hw, other=0.0)\n\n    # Perform BatchNorm calculation\n    normed_x = (x - mean_val) * rstd\n    scaled_shifted_x = normed_x * weight_val + bias_val\n\n    # Apply Tanh activation\n    out = tl.tanh(scaled_shifted_x)\n          ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "12": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 58:23:\n\n    for k in range(0, K, BLOCK_K):\n        # Load a block of A (BLOCK_M x BLOCK_K)\n        a = tl.load(a_ptrs + k * stride_ak,\n                    mask=(offs_am[:, None] < M) & ((k + off...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 43, in wrapper\n    return fn(*args, **kwargs)\nTypeError: dot() got an unexpected keyword argument 'trans_b'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp271fp_dr.py\", line 163, in forward\n    return triton_fused_linear_scalar_mul_leaky_relu(\n  File \"/tmp/tmp271fp_dr.py\", line 134, in triton_fused_linear_scalar_mul_leaky_relu\n    fused_linear_scalar_mul_leaky_relu_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 58:23:\n\n    for k in range(0, K, BLOCK_K):\n        # Load a block of A (BLOCK_M x BLOCK_K)\n        a = tl.load(a_ptrs + k * stride_ak,\n                    mask=(offs_am[:, None] < M) & ((k + offs_ak[None, :]) < K),\n                    other=0.0)\n        # Load a block of B (BLOCK_N x BLOCK_K)\n        b = tl.load(b_ptrs + k * stride_bk,\n                    mask=(offs_bn[:, None] < N) & ((k + offs_bk[None, :]) < K),\n                    other=0.0)\n        # Perform matrix multiplication: A (BLOCK_M x BLOCK_K) @ B.T (BLOCK_K x BLOCK_N)\n        accumulator += tl.dot(a, b, trans_b=True)\n                       ^\ndot() got an unexpected keyword argument 'trans_b'\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "13": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 22:12:\n):\n    \"\"\"\n    Triton kernel to perform mean pooling over the depth dimension (D)\n    and then add a broadcastable bias.\n\n    Each program instance handles one (batch, channel, height, wi...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 43, in wrapper\n    return fn(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 1960, in program_id\n    return _semantic.program_id(axis)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/semantic.py\", line 41, in program_id\n    raise ValueError(f\"program_id axis must be 0, 1, or 2 but got {axis}\")\nValueError: program_id axis must be 0, 1, or 2 but got 3\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp22sy94d0.py\", line 216, in forward\n    x = triton_mean_pool_add_bias(x, self.bias)           # (B, C_out, 1, H, W)\n  File \"/tmp/tmp22sy94d0.py\", line 88, in triton_mean_pool_add_bias\n    mean_pool_depth_add_bias_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 22:12:\n):\n    \"\"\"\n    Triton kernel to perform mean pooling over the depth dimension (D)\n    and then add a broadcastable bias.\n\n    Each program instance handles one (batch, channel, height, width) slice.\n    It iterates over the depth dimension (D) to compute the mean.\n    \"\"\"\n    idx_b = tl.program_id(0)\n    idx_c = tl.program_id(1)\n    idx_h = tl.program_id(2)\n    idx_w = tl.program_id(3)\n            ^\nprogram_id axis must be 0, 1, or 2 but got 3\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "14": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 54:4:\n        b_ptrs = B_vec_ptr + (k_idx + tl.arange(0, BLOCK_SIZE_K)) * stride_bk\n        b_block = tl.load(b_ptrs, mask=(k_idx + tl.arange(0, BLOCK_SIZE_K)) < K, other=0.0)\n\n        # Perform...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 43, in wrapper\n    return fn(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 2610, in store\n    return _semantic.store(pointer, value, mask, boundary_check, cache_modifier, eviction_policy)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/semantic.py\", line 1225, in store\n    raise ValueError(\"Value argument cannot be block type if pointer argument is not a block\")\nValueError: Value argument cannot be block type if pointer argument is not a block\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpc2zt9n03.py\", line 133, in forward\n    fused_dot_product_scale_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 54:4:\n        b_ptrs = B_vec_ptr + (k_idx + tl.arange(0, BLOCK_SIZE_K)) * stride_bk\n        b_block = tl.load(b_ptrs, mask=(k_idx + tl.arange(0, BLOCK_SIZE_K)) < K, other=0.0)\n\n        # Perform element-wise multiplication and sum reduction\n        acc += tl.sum(a_block * b_block)\n\n    # Apply the combined scalar factor\n    final_output = acc * scalar_factor\n\n    # Store the result in the output tensor C\n    c_ptrs = C_ptr + m * stride_cm\n    tl.store(c_ptrs, final_output)\n    ^\nValue argument cannot be block type if pointer argument is not a block\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "15": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 5.55,
+            "runtime_stats": {
+                "mean": 5.55,
+                "std": 0.617,
+                "min": 5.07,
+                "max": 6.75,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "16": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 23:22:\n    offsets = block_start + tl.arange(0, BLOCK_SIZE)\n    # Mask to ensure we don't go out of bounds\n    mask = offsets < n_elements\n\n    # Load input values\n    x = tl.load(x_ptr + offset...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpil22232a.py\", line 95, in forward\n    x = triton_fused_activation_ops(x, self.add_value, self.scale)\n  File \"/tmp/tmpil22232a.py\", line 67, in triton_fused_activation_ops\n    fused_mish_add_hardtanh_mul_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 23:22:\n    offsets = block_start + tl.arange(0, BLOCK_SIZE)\n    # Mask to ensure we don't go out of bounds\n    mask = offsets < n_elements\n\n    # Load input values\n    x = tl.load(x_ptr + offsets, mask=mask, other=0.0).to(tl.float32)\n\n    # --- Mish activation ---\n    # softplus(x) = log(1 + exp(x))\n    softplus_x = tl.log(1 + tl.exp(x))\n    # tanh(softplus(x))\n    tanh_softplus_x = tl.tanh(softplus_x)\n                      ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "17": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 13.9,
+            "runtime_stats": {
+                "mean": 13.9,
+                "std": 0.0202,
+                "min": 13.8,
+                "max": 13.9,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "18": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 53:31:\n                              mask=k_mask, other=0.0)\n\n            # Load block of W (weight matrix)\n            # W is (N, K). We need to load a (BLOCK_SIZE_N, BLOCK_SIZE_K) block.\n     ...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 43, in wrapper\n    return fn(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 2398, in dot\n    assert len(a_shape) == len(b_shape) >= 2, \"input and other must have equal ranks >= 2\"\nAssertionError: input and other must have equal ranks >= 2\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp3426gsy5.py\", line 152, in forward\n    return triton_linear_sum(x, self.linear.weight, self.linear.bias)\n  File \"/tmp/tmp3426gsy5.py\", line 116, in triton_linear_sum\n    linear_sum_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 53:31:\n                              mask=k_mask, other=0.0)\n\n            # Load block of W (weight matrix)\n            # W is (N, K). We need to load a (BLOCK_SIZE_N, BLOCK_SIZE_K) block.\n            w_block = tl.load(w_ptr + n_offsets[:, None] * stride_wn + k_offsets[None, :] * stride_wk,\n                              mask=n_mask[:, None] & k_mask[None, :], other=0.0)\n\n            # Perform dot product: (1, BLOCK_SIZE_K) @ (BLOCK_SIZE_K, BLOCK_SIZE_N)\n            # tl.dot(x_block, tl.trans(w_block)) computes (x_block @ w_block.T)\n            # x_block is (BLOCK_SIZE_K,), tl.trans(w_block) is (BLOCK_SIZE_K, BLOCK_SIZE_N)\n            # Result is (BLOCK_SIZE_N,)\n            partial_row_acc += tl.dot(x_block, tl.trans(w_block))\n                               ^\ninput and other must have equal ranks >= 2\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "19": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 44.7,
+            "runtime_stats": {
+                "mean": 44.7,
+                "std": 1.18,
+                "min": 44.0,
+                "max": 47.0,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "20": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 6.81,
+            "runtime_stats": {
+                "mean": 6.81,
+                "std": 0.569,
+                "min": 6.5,
+                "max": 7.95,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "21": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 14.7,
+            "runtime_stats": {
+                "mean": 14.7,
+                "std": 0.817,
+                "min": 14.3,
+                "max": 16.4,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "22": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 3.5,
+            "runtime_stats": {
+                "mean": 3.5,
+                "std": 0.0131,
+                "min": 3.49,
+                "max": 3.53,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "23": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 3.21,
+            "runtime_stats": {
+                "mean": 3.21,
+                "std": 0.0453,
+                "min": 3.18,
+                "max": 3.3,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "24": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "max_difference": [
+                    "nan"
+                ],
+                "avg_difference": [
+                    "nan"
+                ],
+                "correctness_issue": "Output mismatch",
+                "correctness_trials": "(0 / 1)"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "25": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 35:14:\n            mask = c_offsets < out_channels\n\n            # Index: [batch, channel, spatial]\n            offsets = (b_idx * out_channels * spatial_size) + (c_offsets * spatial_size) + s_id...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp9umcd6at.py\", line 68, in forward\n    return triton_min_tanh_tanh(x)\n  File \"/tmp/tmp9umcd6at.py\", line 55, in triton_min_tanh_tanh\n    fused_min_tanh_tanh_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 35:14:\n            mask = c_offsets < out_channels\n\n            # Index: [batch, channel, spatial]\n            offsets = (b_idx * out_channels * spatial_size) + (c_offsets * spatial_size) + s_idx\n            vals = tl.load(x_ptr + offsets, mask=mask, other=float('inf'))\n            min_val = tl.minimum(min_val, vals)\n\n        # Reduce min_val across the block\n        final_min = tl.min(min_val, axis=0)\n\n        # Apply double tanh\n        res = tl.tanh(tl.tanh(final_min))\n              ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "26": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "The size of tensor a (128) must match the size of tensor b (64) at non-singleton dimension 0",
+                "runtime_error_name": "builtins.RuntimeError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpoieuu4fm.py\", line 53, in forward\n    x = x + self.bias\nRuntimeError: The size of tensor a (128) must match the size of tensor b (64) at non-singleton dimension 0\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "27": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 25.7,
+            "runtime_stats": {
+                "mean": 25.7,
+                "std": 0.309,
+                "min": 25.2,
+                "max": 26.1,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "28": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 3.56,
+            "runtime_stats": {
+                "mean": 3.56,
+                "std": 0.0136,
+                "min": 3.54,
+                "max": 3.58,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "29": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 19:16:\n    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)\n    mask = offsets < n_elements\n\n    # Load input\n    x = tl.load(x_ptr + offsets, mask=mask)\n\n    # Mish(x) = x * tanh(softplus(...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmppha85y5k.py\", line 50, in forward\n    return triton_mish_mish(x)\n  File \"/tmp/tmppha85y5k.py\", line 38, in triton_mish_mish\n    mish_mish_kernel[grid](x, out, n_elements, BLOCK_SIZE=BLOCK_SIZE)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 19:16:\n    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)\n    mask = offsets < n_elements\n\n    # Load input\n    x = tl.load(x_ptr + offsets, mask=mask)\n\n    # Mish(x) = x * tanh(softplus(x)) = x * tanh(ln(1 + exp(x)))\n    # Apply Mish twice: Mish(Mish(x))\n\n    # First Mish\n    softplus1 = tl.log(1.0 + tl.exp(x))\n    mish1 = x * tl.tanh(softplus1)\n                ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "30": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 3.52,
+            "runtime_stats": {
+                "mean": 3.52,
+                "std": 0.0223,
+                "min": 3.5,
+                "max": 3.56,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "31": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 11.5,
+            "runtime_stats": {
+                "mean": 11.5,
+                "std": 0.0199,
+                "min": 11.4,
+                "max": 11.5,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "32": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 29:4:\n    min_val = tl.full((1,), float('inf'), dtype=tl.float32)\n\n    # Iterate over channels\n    for c in range(out_channels):\n        idx = (batch_idx * out_channels * spatial_size) + (c * sp...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 43, in wrapper\n    return fn(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 2610, in store\n    return _semantic.store(pointer, value, mask, boundary_check, cache_modifier, eviction_policy)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/semantic.py\", line 1225, in store\n    raise ValueError(\"Value argument cannot be block type if pointer argument is not a block\")\nValueError: Value argument cannot be block type if pointer argument is not a block\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmphapdbc2_.py\", line 60, in forward\n    return triton_scale_min(x, self.scale_factor)\n  File \"/tmp/tmphapdbc2_.py\", line 44, in triton_scale_min\n    fused_scale_min_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 29:4:\n    min_val = tl.full((1,), float('inf'), dtype=tl.float32)\n\n    # Iterate over channels\n    for c in range(out_channels):\n        idx = (batch_idx * out_channels * spatial_size) + (c * spatial_size) + spatial_idx\n        val = tl.load(x_ptr + idx)\n        val = val * scale_factor\n        min_val = tl.minimum(min_val, val)\n\n    # Store result\n    out_idx = (batch_idx * spatial_size) + spatial_idx\n    tl.store(out_ptr + out_idx, min_val)\n    ^\nValue argument cannot be block type if pointer argument is not a block\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "33": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "max_difference": [
+                    "4.951277"
+                ],
+                "avg_difference": [
+                    "0.720647"
+                ],
+                "correctness_issue": "Output mismatch",
+                "correctness_trials": "(0 / 1)"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "34": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 26:23:\n    # LayerNorm: Mean and Variance\n    mean = tl.sum(x, axis=0) / n_cols\n    var = tl.sum((x - mean) * (x - mean), axis=0) / n_cols\n    inv_std = 1.0 / tl.sqrt(var + eps)\n\n    # Normalize...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpkgugsxfz.py\", line 60, in forward\n    layer_norm_gelu_scale_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 26:23:\n    # LayerNorm: Mean and Variance\n    mean = tl.sum(x, axis=0) / n_cols\n    var = tl.sum((x - mean) * (x - mean), axis=0) / n_cols\n    inv_std = 1.0 / tl.sqrt(var + eps)\n\n    # Normalize\n    w = tl.load(weight_ptr + cols, mask=mask, other=1.0)\n    b = tl.load(bias_ptr + cols, mask=mask, other=0.0)\n    x_norm = (x - mean) * inv_std * w + b\n\n    # GELU: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))\n    cdf = 0.5 * (1.0 + tl.tanh(0.7978845608 * (x_norm + 0.044715 * x_norm * x_norm * x_norm)))\n                       ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "35": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 15:15:\n    BLOCK_SIZE: tl.constexpr\n):\n    pid = tl.program_id(0)\n    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)\n    mask = offsets < n_elements\n\n    x = tl.load(x_ptr + offsets, mask...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp__x36nzn.py\", line 73, in forward\n    fused_mish_kernel[grid_pool](x, out2, n_elements_pool, BLOCK_SIZE=self.BLOCK_SIZE)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 15:15:\n    BLOCK_SIZE: tl.constexpr\n):\n    pid = tl.program_id(0)\n    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)\n    mask = offsets < n_elements\n\n    x = tl.load(x_ptr + offsets, mask=mask)\n\n    # Mish: x * tanh(softplus(x)) = x * tanh(ln(1 + exp(x)))\n    # Use stable softplus: ln(1 + exp(x))\n    softplus = tl.where(x > 20, x, tl.log(1.0 + tl.exp(x)))\n    mish = x * tl.tanh(softplus)\n               ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "36": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 22:14:\n\n    # Input shape: (batch, channels, height, width)\n    # Output shape: (batch, 1, 1, width)\n\n    pid_b = tl.program_id(0)\n    pid_w = tl.program_id(1)\n\n    w_offsets = pid_w * BLOCK_SIZ...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 43, in wrapper\n    return fn(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 2023, in full\n    shape = _shape_check_impl(shape)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 2007, in _shape_check_impl\n    validate_block_shape(shape)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/_utils.py\", line 67, in validate_block_shape\n    raise TypeError(f\"Shape element {i} must have type `constexpr[int]`, got `constexpr[{type(d)}]\")\nTypeError: Shape element 0 must have type `constexpr[int]`, got `constexpr[<class 'triton.language.core.tensor'>]\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpbwnk_si_.py\", line 71, in forward\n    fused_post_conv_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 22:14:\n\n    # Input shape: (batch, channels, height, width)\n    # Output shape: (batch, 1, 1, width)\n\n    pid_b = tl.program_id(0)\n    pid_w = tl.program_id(1)\n\n    w_offsets = pid_w * BLOCK_SIZE_W + tl.arange(0, BLOCK_SIZE_W)\n    mask_w = w_offsets < width\n\n    # Initialize min with a large value\n    min_val = tl.full([channels], float('inf'), dtype=tl.float32)\n              ^\nShape element 0 must have type `constexpr[int]`, got `constexpr[<class 'triton.language.core.tensor'>]\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "37": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "max_difference": [
+                    "15.245914"
+                ],
+                "avg_difference": [
+                    "1.686091"
+                ],
+                "correctness_issue": "Output mismatch",
+                "correctness_trials": "(0 / 1)"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "38": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 17.7,
+            "runtime_stats": {
+                "mean": 17.7,
+                "std": 0.324,
+                "min": 17.5,
+                "max": 18.3,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "39": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 16.8,
+            "runtime_stats": {
+                "mean": 16.8,
+                "std": 0.75,
+                "min": 16.1,
+                "max": 17.8,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "40": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "max_difference": [
+                    "0.002018"
+                ],
+                "avg_difference": [
+                    "0.000281"
+                ],
+                "correctness_issue": "Output mismatch",
+                "correctness_trials": "(0 / 1)"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "41": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 28:37:\n\n    # Process each row for the assigned features\n    for i in range(n_elements // n_features):\n        idx = i * n_features + offsets\n        x = tl.load(x_ptr + idx, mask=mask)\n\n       ...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp6dtu042k.py\", line 60, in forward\n    fused_bn_gelu_relu_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 28:37:\n\n    # Process each row for the assigned features\n    for i in range(n_elements // n_features):\n        idx = i * n_features + offsets\n        x = tl.load(x_ptr + idx, mask=mask)\n\n        # BatchNorm\n        x_hat = (x - mean) * inv_std\n        x_bn = x_hat * weight + bias\n\n        # GELU (approximate)\n        x_gelu = 0.5 * x_bn * (1.0 + tl.tanh(0.79788456 * (x_bn + 0.044715 * x_bn * x_bn * x_bn)))\n                                     ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "42": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 49.8,
+            "runtime_stats": {
+                "mean": 49.8,
+                "std": 1.16,
+                "min": 49.2,
+                "max": 52.1,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "43": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 6.38,
+            "runtime_stats": {
+                "mean": 6.38,
+                "std": 0.00939,
+                "min": 6.37,
+                "max": 6.39,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "44": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 5.8,
+            "runtime_stats": {
+                "mean": 5.8,
+                "std": 0.106,
+                "min": 5.7,
+                "max": 5.94,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "45": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 11.2,
+            "runtime_stats": {
+                "mean": 11.2,
+                "std": 0.027,
+                "min": 11.1,
+                "max": 11.2,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "46": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 15:8:\n    n_elements,\n    BLOCK_SIZE: tl.constexpr,\n):\n    pid = tl.program_id(0)\n    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)\n    mask = offsets < n_elements\n\n    x = tl.load(x_ptr...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpukgwo1zj.py\", line 49, in forward\n    x = triton_fused_ops(x, self.subtract1_value, self.subtract2_value)\n  File \"/tmp/tmpukgwo1zj.py\", line 32, in triton_fused_ops\n    fused_post_conv_kernel[grid](x, out, sub1, sub2, n_elements, BLOCK_SIZE=BLOCK_SIZE)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 15:8:\n    n_elements,\n    BLOCK_SIZE: tl.constexpr,\n):\n    pid = tl.program_id(0)\n    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)\n    mask = offsets < n_elements\n\n    x = tl.load(x_ptr + offsets, mask=mask)\n\n    # Fused: (x - sub1) -> tanh -> (x - sub2)\n    x = x - sub1\n    x = tl.tanh(x)\n        ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "47": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 16:15:\n    BLOCK_SIZE: tl.constexpr,\n):\n    pid = tl.program_id(0)\n    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)\n    mask = offsets < n_elements\n\n    x = tl.load(x_ptr + offsets, mas...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp97yvua98.py\", line 45, in forward\n    return fused_mish_tanh(x)\n  File \"/tmp/tmp97yvua98.py\", line 34, in fused_mish_tanh\n    mish_tanh_kernel[grid](x, out, n_elements, BLOCK_SIZE=BLOCK_SIZE)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 16:15:\n    BLOCK_SIZE: tl.constexpr,\n):\n    pid = tl.program_id(0)\n    offsets = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)\n    mask = offsets < n_elements\n\n    x = tl.load(x_ptr + offsets, mask=mask)\n\n    # Mish: x * tanh(softplus(x)) = x * tanh(ln(1 + exp(x)))\n    # We fuse Mish and Tanh: tanh(x * tanh(ln(1 + exp(x))))\n    softplus = tl.log(1.0 + tl.exp(x))\n    mish = x * tl.tanh(softplus)\n               ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "48": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "max_difference": [
+                    "0.517695"
+                ],
+                "avg_difference": [
+                    "0.127468"
+                ],
+                "correctness_issue": "Output mismatch",
+                "correctness_trials": "(0 / 1)"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "49": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 8.52,
+            "runtime_stats": {
+                "mean": 8.52,
+                "std": 0.595,
+                "min": 8.22,
+                "max": 9.71,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "50": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 21.3,
+            "runtime_stats": {
+                "mean": 21.3,
+                "std": 0.0216,
+                "min": 21.2,
+                "max": 21.3,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "51": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 30:23:\n    # Subtract\n    val = x - sub\n\n    # Mean (GlobalAvgPool)\n    sum_val = tl.sum(val, axis=0)\n    mean_val = sum_val / out_features\n\n    # LogSumExp (on the reduced scalar, LogSumExp(x) ...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp4u_b643n.py\", line 66, in forward\n    fused_post_gemm_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 30:23:\n    # Subtract\n    val = x - sub\n\n    # Mean (GlobalAvgPool)\n    sum_val = tl.sum(val, axis=0)\n    mean_val = sum_val / out_features\n\n    # LogSumExp (on the reduced scalar, LogSumExp(x) = x)\n    lse = mean_val\n\n    # GELU: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))\n    cdf = 0.5 * (1.0 + tl.tanh(0.7978845608 * (lse + 0.044715 * lse * lse * lse)))\n                       ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "52": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "max_difference": [
+                    "9.613122"
+                ],
+                "avg_difference": [
+                    "0.726808"
+                ],
+                "correctness_issue": "Output mismatch",
+                "correctness_trials": "(0 / 1)"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "53": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 26:23:\n    x = tl.load(x_ptr + offsets, mask=mask)\n\n    # Scale\n    x = x * scaling_factor\n\n    # Hardtanh\n    x = tl.maximum(x, hardtanh_min)\n    x = tl.minimum(x, hardtanh_max)\n\n    # GELU (Ap...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp6f1ab7ir.py\", line 61, in forward\n    return triton_post_gemm(x, self.scaling_factor, self.hardtanh_min, self.hardtanh_max)\n  File \"/tmp/tmp6f1ab7ir.py\", line 44, in triton_post_gemm\n    fused_post_gemm_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 26:23:\n    x = tl.load(x_ptr + offsets, mask=mask)\n\n    # Scale\n    x = x * scaling_factor\n\n    # Hardtanh\n    x = tl.maximum(x, hardtanh_min)\n    x = tl.minimum(x, hardtanh_max)\n\n    # GELU (Approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3))))\n    # Using the standard tanh approximation for GELU\n    cdf = 0.5 * (1.0 + tl.tanh(0.7978845608 * (x + 0.044715 * x * x * x)))\n                       ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "54": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 28:28:\n\n    # Apply multiplier\n    x = x * m\n\n    # LeakyReLU (alpha=0.01)\n    x = tl.where(x > 0, x, x * 0.01)\n\n    # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpxc913hck.py\", line 63, in forward\n    return triton_fused_post_conv(x, self.multiplier.view(-1))\n  File \"/tmp/tmpxc913hck.py\", line 47, in triton_fused_post_conv\n    fused_post_conv_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 28:28:\n\n    # Apply multiplier\n    x = x * m\n\n    # LeakyReLU (alpha=0.01)\n    x = tl.where(x > 0, x, x * 0.01)\n\n    # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))\n    sqrt_2_over_pi = 0.7978845608\n    x_cubed = x * x * x\n    inner = sqrt_2_over_pi * (x + 0.044715 * x_cubed)\n    gelu = 0.5 * x * (1.0 + tl.tanh(inner))\n                            ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "55": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 7.12,
+            "runtime_stats": {
+                "mean": 7.12,
+                "std": 0.224,
+                "min": 6.94,
+                "max": 7.52,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "56": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "max_difference": [
+                    "8372250.500000"
+                ],
+                "avg_difference": [
+                    "8372229.000000"
+                ],
+                "correctness_issue": "Output mismatch",
+                "correctness_trials": "(0 / 1)"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "57": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 4.51,
+            "runtime_stats": {
+                "mean": 4.51,
+                "std": 0.0326,
+                "min": 4.48,
+                "max": 4.57,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "58": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 24:4:\n\n    # Calculate spatial indices\n    spatial_idx = offsets\n    w = spatial_idx % W\n    h = (spatial_idx // W) % H\n    d = (spatial_idx // (W * H)) % D\n    n = (spatial_idx // (W * H * D))\n...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp59vvwgs5.py\", line 70, in forward\n    fused_post_conv_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 24:4:\n\n    # Calculate spatial indices\n    spatial_idx = offsets\n    w = spatial_idx % W\n    h = (spatial_idx // W) % H\n    d = (spatial_idx // (W * H)) % D\n    n = (spatial_idx // (W * H * D))\n\n    # 1. LogSumExp along dim=1\n    # Load all channels for this spatial location\n    max_val = -float('inf')\n    for c in range(C):\n    ^\nAssertionError(\"Loop-carried variable max_val has initial type fp32 but is re-assigned to <['256'], fp32> in loop! Please make sure that the type stays consistent.\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "59": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 6.96,
+            "runtime_stats": {
+                "mean": 6.96,
+                "std": 0.0518,
+                "min": 6.92,
+                "max": 7.02,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "60": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 30.8,
+            "runtime_stats": {
+                "mean": 30.8,
+                "std": 0.531,
+                "min": 30.3,
+                "max": 31.4,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "61": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 6.81,
+            "runtime_stats": {
+                "mean": 6.81,
+                "std": 1.12,
+                "min": 6.08,
+                "max": 9.03,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "62": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "max_difference": [
+                    "4.818968"
+                ],
+                "avg_difference": [
+                    "0.238372"
+                ],
+                "correctness_issue": "Output mismatch",
+                "correctness_trials": "(0 / 1)"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "63": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "max_difference": [
+                    "0.818223"
+                ],
+                "avg_difference": [
+                    "0.095302"
+                ],
+                "correctness_issue": "Output mismatch",
+                "correctness_trials": "(0 / 1)"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "64": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 21:4:\n\n    x = tl.load(x_ptr + offsets, mask=mask)\n\n    # LogSumExp result is a scalar per row, but here we process the output of LogSumExp\n    # The sequence: LeakyReLU(0.01) -> LeakyReLU(0.01)...",
+                "runtime_error_name": "triton.compiler.errors.UnsupportedLanguageConstruct",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmps35ct4s_.py\", line 56, in forward\n    x = triton_fused_activations(x)\n  File \"/tmp/tmps35ct4s_.py\", line 40, in triton_fused_activations\n    fused_activation_kernel[grid](x, out, n_elements, BLOCK_SIZE=BLOCK_SIZE)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.UnsupportedLanguageConstruct: at 21:4:\n\n    x = tl.load(x_ptr + offsets, mask=mask)\n\n    # LogSumExp result is a scalar per row, but here we process the output of LogSumExp\n    # The sequence: LeakyReLU(0.01) -> LeakyReLU(0.01) -> GELU -> GELU\n\n    # LeakyReLU(0.01) twice\n    x = tl.where(x > 0, x, x * 0.01)\n    x = tl.where(x > 0, x, x * 0.01)\n\n    # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))\n    def gelu(x):\n    ^\nnested function definitions are not allowed inside a @triton.jit kernel. Move the helper function to module level and decorate it with @triton.jit.\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "65": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 54.9,
+            "runtime_stats": {
+                "mean": 54.9,
+                "std": 0.93,
+                "min": 54.1,
+                "max": 56.6,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "66": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "max_difference": [
+                    "0.000342"
+                ],
+                "avg_difference": [
+                    "0.000007"
+                ],
+                "correctness_issue": "Output mismatch",
+                "correctness_trials": "(0 / 1)"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "67": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 22:27:\n    x_offset = (b * out_channels * spatial_size) + (c * spatial_size)\n\n    sum_val = 0.0\n    for i in range(0, spatial_size, BLOCK_SIZE_SPATIAL):\n        offsets = i + tl.arange(0, BLOCK_...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpg1xwifgz.py\", line 59, in forward\n    return triton_gelu_pool(x)\n  File \"/tmp/tmpg1xwifgz.py\", line 44, in triton_gelu_pool\n    gelu_pool_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 22:27:\n    x_offset = (b * out_channels * spatial_size) + (c * spatial_size)\n\n    sum_val = 0.0\n    for i in range(0, spatial_size, BLOCK_SIZE_SPATIAL):\n        offsets = i + tl.arange(0, BLOCK_SIZE_SPATIAL)\n        mask = offsets < spatial_size\n\n        # Load\n        x = tl.load(x_ptr + x_offset + offsets, mask=mask, other=0.0)\n\n        # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))\n        cdf = 0.5 * (1.0 + tl.tanh(0.79788456 * (x + 0.044715 * x * x * x)))\n                           ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "68": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "max_difference": [
+                    "0.001226"
+                ],
+                "avg_difference": [
+                    "0.000195"
+                ],
+                "correctness_issue": "Output mismatch",
+                "correctness_trials": "(0 / 1)"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "69": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 4.5,
+            "runtime_stats": {
+                "mean": 4.5,
+                "std": 0.0286,
+                "min": 4.48,
+                "max": 4.56,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "70": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "max_difference": [
+                    "1.444083"
+                ],
+                "avg_difference": [
+                    "0.284123"
+                ],
+                "correctness_issue": "Output mismatch",
+                "correctness_trials": "(0 / 1)"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "71": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 4.56,
+            "runtime_stats": {
+                "mean": 4.56,
+                "std": 0.0333,
+                "min": 4.51,
+                "max": 4.6,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "72": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 38:12:\n    # Load BN parameters\n    mean = tl.load(mean_ptr + c)\n    var = tl.load(var_ptr + c)\n    weight = tl.load(weight_ptr + c)\n    bias = tl.load(bias_ptr + c)\n    inv_std = 1.0 / tl.sqrt(...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpgynf9oc7.py\", line 79, in forward\n    fused_bn_avgpool_kernel[(grid,)](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 38:12:\n    # Load BN parameters\n    mean = tl.load(mean_ptr + c)\n    var = tl.load(var_ptr + c)\n    weight = tl.load(weight_ptr + c)\n    bias = tl.load(bias_ptr + c)\n    inv_std = 1.0 / tl.sqrt(var + eps)\n\n    # Perform 4x4x4 average pooling (two 2x2x2 pools = 4x4x4 window)\n    sum_val = 0.0\n    for i in range(4):\n        for j in range(4):\n            for k in range(4):\n            ^\nAssertionError(\"Loop-carried variable sum_val has initial type fp32 but is re-assigned to <['128'], fp32> in loop! Please make sure that the type stays consistent.\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "73": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "max_difference": [
+                    "10.510200"
+                ],
+                "avg_difference": [
+                    "1.424500"
+                ],
+                "correctness_issue": "Output mismatch",
+                "correctness_trials": "(0 / 1)"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "74": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 4.2,
+            "runtime_stats": {
+                "mean": 4.2,
+                "std": 0.835,
+                "min": 3.78,
+                "max": 5.87,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "75": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_issue": "Output shape mismatch: Expected torch.Size([1, 8192, 1024, 1]), got torch.Size([1024, 1])",
+                "correctness_issue_name": "correctness_issue"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "76": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "max_difference": [
+                    "267.715302"
+                ],
+                "avg_difference": [
+                    "20.898525"
+                ],
+                "correctness_issue": "Output mismatch",
+                "correctness_trials": "(0 / 1)"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "77": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 17:11:\n    BLOCK_SIZE: tl.constexpr,\n):\n    # This kernel fuses: x * scale -> BatchNorm -> GlobalAvgPool\n    # Since GlobalAvgPool reduces spatial dims to 1x1x1, we compute the mean \n    # acros...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 43, in wrapper\n    return fn(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 2540, in load\n    return _semantic.load(pointer, mask, other, boundary_check, padding_option, cache_modifier, eviction_policy,\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/semantic.py\", line 1008, in load\n    raise ValueError(f\"Unsupported ptr type {ptr.type.__repr__()} in `tl.load`\")\nValueError: Unsupported ptr type triton.language.int64 in `tl.load`\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpz7vl22gz.py\", line 72, in forward\n    fused_scale_bn_pool_kernel[(C,)](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 17:11:\n    BLOCK_SIZE: tl.constexpr,\n):\n    # This kernel fuses: x * scale -> BatchNorm -> GlobalAvgPool\n    # Since GlobalAvgPool reduces spatial dims to 1x1x1, we compute the mean \n    # across D, H, W for each channel C.\n\n    pid = tl.program_id(0)  # Channel index\n    if pid >= C:\n        return\n\n    # Load BN parameters for this channel\n    mean = tl.load(mean_ptr + pid)\n           ^\nUnsupported ptr type triton.language.int64 in `tl.load`\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "78": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 35:16:\n\n    # Input coordinates for the 6x6x6 window\n    in_d_start = d * 6\n    in_h_start = h * 6\n    in_w_start = w * 6\n\n    sum_val = 0.0\n    for c in range(in_channels):\n        max_val = -1...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpop98zwe3.py\", line 74, in forward\n    return triton_fused_pool_sum(x)\n  File \"/tmp/tmpop98zwe3.py\", line 58, in triton_fused_pool_sum\n    fused_pool_sum_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 35:16:\n\n    # Input coordinates for the 6x6x6 window\n    in_d_start = d * 6\n    in_h_start = h * 6\n    in_w_start = w * 6\n\n    sum_val = 0.0\n    for c in range(in_channels):\n        max_val = -1e20\n        for id in range(6):\n            for ih in range(6):\n                for iw in range(6):\n                ^\nAssertionError(\"Loop-carried variable max_val has initial type fp32 but is re-assigned to <['32'], fp32> in loop! Please make sure that the type stays consistent.\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "79": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "max_difference": [
+                    "4.091852"
+                ],
+                "avg_difference": [
+                    "0.698162"
+                ],
+                "correctness_issue": "Output mismatch",
+                "correctness_trials": "(0 / 1)"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "80": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 26:4:\n    # Load row and compute max/mean\n    row_offsets = row_start + tl.arange(0, BLOCK_SIZE_M)\n    col_offsets = tl.arange(0, BLOCK_SIZE_N)\n\n    # Initialize accumulators\n    max_val = -floa...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpv1junefi.py\", line 73, in forward\n    fused_post_gemm_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 26:4:\n    # Load row and compute max/mean\n    row_offsets = row_start + tl.arange(0, BLOCK_SIZE_M)\n    col_offsets = tl.arange(0, BLOCK_SIZE_N)\n\n    # Initialize accumulators\n    max_val = -float('inf')\n    sum_val = 0.0\n\n    # We need to compute max and mean across the row\n    # Since we need the max value to subtract, we do two passes or load once\n    # Given the constraints, we load the row into SRAM\n    for i in range(0, out_features, BLOCK_SIZE_N):\n    ^\nAssertionError(\"Loop-carried variable max_val has initial type fp32 but is re-assigned to <['16'], fp32> in loop! Please make sure that the type stays consistent.\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "81": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 24:10:\n\n    # Swish: x * sigmoid(x)\n    swish = x * tl.sigmoid(x)\n\n    # Divide by 2.0\n    val = swish / 2.0\n\n    # Clamp [-1, 1]\n    val = tl.maximum(tl.minimum(val, 1.0), -1.0)\n\n    # Tanh\n   ...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpi6v8u9w1.py\", line 55, in forward\n    return triton_fused_activation(x)\n  File \"/tmp/tmpi6v8u9w1.py\", line 43, in triton_fused_activation\n    fused_activation_kernel[grid](x, out, n_elements, BLOCK_SIZE=BLOCK_SIZE)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 24:10:\n\n    # Swish: x * sigmoid(x)\n    swish = x * tl.sigmoid(x)\n\n    # Divide by 2.0\n    val = swish / 2.0\n\n    # Clamp [-1, 1]\n    val = tl.maximum(tl.minimum(val, 1.0), -1.0)\n\n    # Tanh\n    val = tl.tanh(val)\n          ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "82": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 34:18:\n\n    # Iterate over pool window\n    for ph in range(pool_size):\n        for pw in range(pool_size):\n            h_in = pid_h * pool_size + ph\n            w_in = pid_w * pool_size + pw\n\n  ...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpn2xlnjwu.py\", line 65, in forward\n    fused_activation_bias_pool_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 34:18:\n\n    # Iterate over pool window\n    for ph in range(pool_size):\n        for pw in range(pool_size):\n            h_in = pid_h * pool_size + ph\n            w_in = pid_w * pool_size + pw\n\n            idx = ((b * channels + c) * height + h_in) * width + w_in\n            val = tl.load(x_ptr + idx)\n\n            # Apply Tanh, Scaling, and Bias\n            val = tl.tanh(val) * scaling_factor + bias\n                  ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "83": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 8.27,
+            "runtime_stats": {
+                "mean": 8.27,
+                "std": 1.16,
+                "min": 7.42,
+                "max": 10.6,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "84": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "max_difference": [
+                    "0.012848"
+                ],
+                "avg_difference": [
+                    "0.000083"
+                ],
+                "correctness_issue": "Output mismatch",
+                "correctness_trials": "(0 / 1)"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "85": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 9.86,
+            "runtime_stats": {
+                "mean": 9.86,
+                "std": 0.121,
+                "min": 9.79,
+                "max": 10.1,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "86": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 35:23:\n        acc += tl.dot(a, b)\n        A_ptr += BLOCK_SIZE_K * stride_ak\n        B_ptr += BLOCK_SIZE_K * stride_bk\n\n    if Bias is not None:\n        bias = tl.load(Bias + rn)\n        acc += ...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpxyon9qa_.py\", line 62, in forward\n    matmul_div_gelu_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 35:23:\n        acc += tl.dot(a, b)\n        A_ptr += BLOCK_SIZE_K * stride_ak\n        B_ptr += BLOCK_SIZE_K * stride_bk\n\n    if Bias is not None:\n        bias = tl.load(Bias + rn)\n        acc += bias[None, :]\n\n    # Apply division and GELU\n    acc = acc / divisor\n    # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))\n    cdf = 0.5 * (1.0 + tl.tanh(0.79788456 * (acc + 0.044715 * acc * acc * acc)))\n                       ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "87": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 28:14:\n    x = x - sub1 - sub2\n\n    # Mish: x * tanh(softplus(x)) = x * tanh(ln(1 + exp(x)))\n    # Using tl.exp and tl.log for stability\n    # softplus(x) = log(1 + exp(x))\n    # tanh(softplus(x...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp7x896pg1.py\", line 60, in forward\n    return triton_mish_subtraction(x, self.sub1, self.sub2)\n  File \"/tmp/tmp7x896pg1.py\", line 45, in triton_mish_subtraction\n    mish_subtraction_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 28:14:\n    x = x - sub1 - sub2\n\n    # Mish: x * tanh(softplus(x)) = x * tanh(ln(1 + exp(x)))\n    # Using tl.exp and tl.log for stability\n    # softplus(x) = log(1 + exp(x))\n    # tanh(softplus(x)) = (exp(softplus(x)) - exp(-softplus(x))) / (exp(softplus(x)) + exp(-softplus(x)))\n    # exp(softplus(x)) = 1 + exp(x)\n    # exp(-softplus(x)) = 1 / (1 + exp(x))\n\n    exp_x = tl.exp(x)\n    softplus = tl.log(1.0 + exp_x)\n    out = x * tl.tanh(softplus)\n              ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "88": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 3.7,
+            "runtime_stats": {
+                "mean": 3.7,
+                "std": 0.0285,
+                "min": 3.68,
+                "max": 3.76,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "89": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 22:12:\n    num_spatial = depth * height * width\n\n    # Calculate spatial index\n    spatial_idx = pid\n    if spatial_idx < num_spatial:\n        # 1. Softmax across channels\n        # Load all cha...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpy1f2d60q.py\", line 72, in forward\n    fused_post_conv_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 22:12:\n    num_spatial = depth * height * width\n\n    # Calculate spatial index\n    spatial_idx = pid\n    if spatial_idx < num_spatial:\n        # 1. Softmax across channels\n        # Load all channels for this spatial location\n        acc = tl.zeros([16], dtype=tl.float32)\n        for c in range(channels):\n            idx = (spatial_idx * channels + c)\n            val = tl.load(x_ptr + idx)\n            acc[c] = tl.exp(val)\n            ^\nNotImplementedError('__setitem__ is not supported in triton')\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "90": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 34:23:\n    # We perform the add, clamp, and gelu\n\n    # Note: In a real scenario, we'd pass strides to handle the broadcast correctly.\n    # Here we assume the sum_tensor is already broadcasted ...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpc50hpocc.py\", line 63, in forward\n    fused_activation_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 34:23:\n    # We perform the add, clamp, and gelu\n\n    # Note: In a real scenario, we'd pass strides to handle the broadcast correctly.\n    # Here we assume the sum_tensor is already broadcasted or handled via logic.\n    # For brevity, we perform the element-wise ops:\n\n    # Clamp\n    x = tl.maximum(tl.minimum(x, 1.0), -1.0)\n\n    # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))\n    sqrt_2_over_pi = 0.79788456\n    cdf = 0.5 * (1.0 + tl.tanh(sqrt_2_over_pi * (x + 0.044715 * x * x * x)))\n                       ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "91": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 17:14:\n):\n    # This kernel performs: Softmax(dim=1) -> Add Bias -> Scale -> Sigmoid\n    # We process spatial locations in parallel.\n    pid = tl.program_id(0)\n    spatial_idx = pid * BLOCK_SIZE...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 43, in wrapper\n    return fn(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 2540, in load\n    return _semantic.load(pointer, mask, other, boundary_check, padding_option, cache_modifier, eviction_policy,\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/semantic.py\", line 1008, in load\n    raise ValueError(f\"Unsupported ptr type {ptr.type.__repr__()} in `tl.load`\")\nValueError: Unsupported ptr type <['64'], int64> in `tl.load`\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmphiegpduz.py\", line 66, in forward\n    fused_post_conv_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 17:14:\n):\n    # This kernel performs: Softmax(dim=1) -> Add Bias -> Scale -> Sigmoid\n    # We process spatial locations in parallel.\n    pid = tl.program_id(0)\n    spatial_idx = pid * BLOCK_SIZE + tl.arange(0, BLOCK_SIZE)\n    mask = spatial_idx < spatial_size\n\n    # Load all channels for these spatial locations to compute softmax\n    # Softmax over dim=1 (channels)\n    max_val = -float('inf')\n    for c in range(channels):\n        val = tl.load(x_ptr + (c * spatial_size + spatial_idx), mask=mask, other=-float('inf'))\n              ^\nUnsupported ptr type <['64'], int64> in `tl.load`\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "92": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 21:13:\n    # Calculate channel offsets\n    channels_per_group = num_channels // num_groups\n    group_idx = pid // channels_per_group\n\n    # Load x_conv (residual)\n    x_conv = tl.load(x_conv_ptr...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp6dvcynn7.py\", line 78, in forward\n    fused_norm_act_res_lse_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 21:13:\n    # Calculate channel offsets\n    channels_per_group = num_channels // num_groups\n    group_idx = pid // channels_per_group\n\n    # Load x_conv (residual)\n    x_conv = tl.load(x_conv_ptr + pid)\n\n    # Load x_norm (pre-computed GroupNorm output)\n    x_norm = tl.load(x_norm_ptr + pid)\n\n    # Tanh\n    x_tanh = tl.tanh(x_norm)\n             ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "93": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 24:23:\n    # Load\n    x = tl.load(x_ptr + offsets, mask=mask)\n\n    # x = x + add_value\n    x = x + add_val\n\n    # x = torch.min(x, 0.0)\n    x = tl.minimum(x, 0.0)\n\n    # GELU approximation: 0.5 ...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp58lye9na.py\", line 56, in forward\n    return triton_post_conv(x, self.add_value, self.multiply_value)\n  File \"/tmp/tmp58lye9na.py\", line 43, in triton_post_conv\n    fused_post_conv_kernel[grid](x, out, add_val, mul_val, n_elements, BLOCK_SIZE=BLOCK_SIZE)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 24:23:\n    # Load\n    x = tl.load(x_ptr + offsets, mask=mask)\n\n    # x = x + add_value\n    x = x + add_val\n\n    # x = torch.min(x, 0.0)\n    x = tl.minimum(x, 0.0)\n\n    # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))\n    # Since x <= 0 here, we apply standard GELU\n    cdf = 0.5 * (1.0 + tl.tanh(0.7978845608 * (x + 0.044715 * x * x * x)))\n                       ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "94": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 24:12:\n\n    # Bias Add\n    x = x + bias\n\n    # Hardtanh: clamp(-1, 1)\n    x = tl.where(x < -1.0, -1.0, x)\n    x = tl.where(x > 1.0, 1.0, x)\n\n    # Mish: x * tanh(softplus(x)) = x * tanh(log(1 + ...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpgk5x1pqv.py\", line 54, in forward\n    x = triton_fused_ops(x, self.bias)\n  File \"/tmp/tmpgk5x1pqv.py\", line 40, in triton_fused_ops\n    fused_activation_kernel[grid](x, bias, out, n_elements, n_cols, BLOCK_SIZE=BLOCK_SIZE)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 24:12:\n\n    # Bias Add\n    x = x + bias\n\n    # Hardtanh: clamp(-1, 1)\n    x = tl.where(x < -1.0, -1.0, x)\n    x = tl.where(x > 1.0, 1.0, x)\n\n    # Mish: x * tanh(softplus(x)) = x * tanh(log(1 + exp(x)))\n    # Use stable softplus: log(1 + exp(x))\n    softplus = tl.where(x > 20, x, tl.log(1.0 + tl.exp(x)))\n    x = x * tl.tanh(softplus)\n            ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "95": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 25:8:\n    # Load x and add_value (broadcasted)\n    x = tl.load(x_ptr + offsets, mask=mask)\n    add_val = tl.load(add_ptr + (offsets % n_cols), mask=mask)\n\n    # Add\n    x = x + add_val\n\n    # Sw...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp8gtenkdy.py\", line 65, in forward\n    return triton_fused_activation(x, self.add_value)\n  File \"/tmp/tmp8gtenkdy.py\", line 50, in triton_fused_activation\n    fused_activation_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 25:8:\n    # Load x and add_value (broadcasted)\n    x = tl.load(x_ptr + offsets, mask=mask)\n    add_val = tl.load(add_ptr + (offsets % n_cols), mask=mask)\n\n    # Add\n    x = x + add_val\n\n    # Swish: x * sigmoid(x)\n    x = x * (1.0 / (1.0 + tl.exp(-x)))\n\n    # Tanh\n    x = tl.tanh(x)\n        ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "96": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 28.3,
+            "runtime_stats": {
+                "mean": 28.3,
+                "std": 0.0375,
+                "min": 28.3,
+                "max": 28.4,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "97": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 3.57,
+            "runtime_stats": {
+                "mean": 3.57,
+                "std": 0.00228,
+                "min": 3.57,
+                "max": 3.57,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "98": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 29:38:\n        # Iterate over the pooled segments\n        for col_idx in range(num_cols):\n            # Compute average of the window\n            sum_val = 0.0\n            for k in range(pool_si...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp2wo91xlh.py\", line 62, in forward\n    fused_post_matmul_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 29:38:\n        # Iterate over the pooled segments\n        for col_idx in range(num_cols):\n            # Compute average of the window\n            sum_val = 0.0\n            for k in range(pool_size):\n                idx = row_idx * out_features + (col_idx * pool_size + k)\n                sum_val += tl.load(x_ptr + idx)\n\n            avg = sum_val / pool_size\n\n            # GELU approximation: 0.5 * x * (1 + tanh(sqrt(2/pi) * (x + 0.044715 * x^3)))\n            gelu = 0.5 * avg * (1.0 + tl.tanh(0.79788456 * (avg + 0.044715 * avg * avg * avg)))\n                                      ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "99": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 27:27:\n\n    # Online Softmax: find max for stability\n    m_i = tl.full([BLOCK_SIZE_M, BLOCK_SIZE_N], float(\"-inf\"), dtype=tl.float32)\n\n    # First pass: GELU and find max\n    for start_col in ra...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmptqyaz2yj.py\", line 76, in forward\n    return triton_gelu_softmax(x)\n  File \"/tmp/tmptqyaz2yj.py\", line 66, in triton_gelu_softmax\n    gelu_softmax_kernel[grid](x, out, n_cols, n_rows, BLOCK_SIZE_M=BLOCK_SIZE_M, BLOCK_SIZE_N=BLOCK_SIZE_N)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 27:27:\n\n    # Online Softmax: find max for stability\n    m_i = tl.full([BLOCK_SIZE_M, BLOCK_SIZE_N], float(\"-inf\"), dtype=tl.float32)\n\n    # First pass: GELU and find max\n    for start_col in range(0, n_cols, BLOCK_SIZE_N):\n        cols = start_col + col_offsets\n        mask = (cols[None, :] < n_cols) & row_mask\n        x = tl.load(x_ptr + row_idx[:, None] * n_cols + cols[None, :], mask=mask, other=float(\"-inf\"))\n\n        # GELU\n        cdf = 0.5 * (1.0 + tl.tanh(0.79788456 * (x + 0.044715 * x * x * x)))\n                           ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "100": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 46.3,
+            "runtime_stats": {
+                "mean": 46.3,
+                "std": 0.711,
+                "min": 45.8,
+                "max": 47.7,
+                "num_trials": 5,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ]
+}

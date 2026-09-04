@@ -344,15 +344,26 @@ def main(config: ScriptConfig):
 
         with app.run():
             print("[INFO] Evaluating kernel against reference code (MODAL)")
-            # Evaluate kernel against reference code
-            kernel_eval_result = EvalFunc.with_options(
-                gpu=config.gpu
-            )().evaluate_single_sample_src_modal.remote(
-                ref_arch_src=ref_arch_src,
-                kernel_src=kernel_src,
-                configs=config.to_dict(),
-                gpu_arch=gpu_arch
-            )
+            try:
+                # Evaluate kernel against reference code
+                kernel_eval_result = EvalFunc.with_options(
+                    gpu=config.gpu,
+                    timeout=config.timeout
+                )().evaluate_single_sample_src_modal.remote(
+                    ref_arch_src=ref_arch_src,
+                    kernel_src=kernel_src,
+                    configs=config.to_dict(),
+                    gpu_arch=gpu_arch
+                )
+            except Exception as e:
+                print(f"[ERROR] Modal evaluation failed: {e}")
+                kernel_eval_result = kernel_eval.KernelExecResult(
+                    compiled=False,
+                    correctness=False,
+                    metadata={"error": str(e)},
+                    runtime=-1.0,
+                    runtime_stats={}
+                )
             kernel_exec_time = kernel_eval_result.runtime
 
             # Measure baseline time

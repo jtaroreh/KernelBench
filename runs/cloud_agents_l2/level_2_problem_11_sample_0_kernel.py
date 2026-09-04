@@ -1,0 +1,330 @@
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import triton
+import triton.language as tl
+
+
+# --- Triton Kernels and Wrappers ---
+
+@triton.jit
+def _batchnorm_tanh_kernel(
+    x_ptr,  # Pointer to input tensor (N, C, H, W)
+    mean_ptr,  # Pointer to running_mean (C,)
+    var_ptr,  # Pointer to running_var (C,)
+    weight_ptr,  # Pointer to weight (gamma) (C,)
+    bias_ptr,  # Pointer to bias (beta) (C,)
+    out_ptr,  # Pointer to output tensor (N, C, H, W)
+    N_CHANNELS,  # Total number of channels
+    N_H,  # Height
+    N_W,  # Width
+    EPS: tl.constexpr,  # Epsilon for numerical stability
+    BLOCK_SIZE_HW: tl.constexpr,  # Block size for H*W dimension
+):
+    """
+    Triton kernel for fused BatchNorm2d and Tanh activation.
+    Each program instance processes a block of H*W elements for a specific (batch, channel) slice.
+    """
+    pid_n = tl.program_id(0)  # Batch index
+    pid_c = tl.program_id(1)  # Channel index
+
+    # Load channel-specific BatchNorm parameters
+    mean_val = tl.load(mean_ptr + pid_c)
+    var_val = tl.load(var_ptr + pid_c)
+    weight_val = tl.load(weight_ptr + pid_c)
+    bias_val = tl.load(bias_ptr + pid_c)
+
+    # Calculate inverse standard deviation
+    rstd = 1 / tl.sqrt(var_val + EPS)
+
+    # Iterate over H*W for the current (N, C) slice
+    num_hw_elements = N_H * N_W
+    block_start_hw = tl.program_id(2) * BLOCK_SIZE_HW
+    offsets_hw = block_start_hw + tl.arange(0, BLOCK_SIZE_HW)
+    
+    # Calculate global pointers for the current (N, C) slice
+    x_base_ptr = x_ptr + pid_n * N_CHANNELS * N_H * N_W + pid_c * N_H * N_W
+    out_base_ptr = out_ptr + pid_n * N_CHANNELS * N_H * N_W + pid_c * N_H * N_W
+
+    # Mask to ensure we don't go out of bounds for H*W
+    mask_hw = offsets_hw < num_hw_elements
+
+    # Load input values for the current block
+    x = tl.load(x_base_ptr + offsets_hw, mask=mask_hw, other=0.0)
+
+    # Perform BatchNorm calculation
+    normed_x = (x - mean_val) * rstd
+    scaled_shifted_x = normed_x * weight_val + bias_val
+
+    # Apply Tanh activation
+    out = tl.tanh(scaled_shifted_x)
+
+    # Store the result
+    tl.store(out_base_ptr + offsets_hw, out, mask=mask_hw)
+
+
+def triton_batchnorm_tanh(x: torch.Tensor, bn_module: nn.BatchNorm2d):
+    """
+    Wrapper function to launch the fused BatchNorm2d + Tanh Triton kernel.
+    """
+    assert x.is_cuda, "Input tensor must be on CUDA."
+    x = x.contiguous()
+
+    # Get BatchNorm parameters from the module
+    running_mean = bn_module.running_mean.contiguous()
+    running_var = bn_module.running_var.contiguous()
+    weight = bn_module.weight.contiguous()
+    bias = bn_module.bias.contiguous()
+    eps = bn_module.eps
+
+    N, C, H, W = x.shape
+    out = torch.empty_like(x)
+
+    # Triton grid configuration: (batch_size, num_channels, num_blocks_hw)
+    # Each program handles a (N, C) slice, processing H*W elements in blocks.
+    BLOCK_SIZE_HW = 128  # Tunable parameter for block size along H*W
+    num_hw_elements = H * W
+    num_blocks_hw = (num_hw_elements + BLOCK_SIZE_HW - 1) // BLOCK_SIZE_HW
+
+    grid = (N, C, num_blocks_hw)
+
+    _batchnorm_tanh_kernel[grid](
+        x, running_mean, running_var, weight, bias, out,
+        C, H, W,
+        EPS=eps,
+        BLOCK_SIZE_HW=BLOCK_SIZE_HW,
+    )
+    return out
+
+
+@triton.jit
+def _groupnorm_mean_var_kernel(
+    x_ptr,  # Pointer to input tensor (N, C, H, W)
+    mean_out_ptr,  # Pointer to output mean tensor (N, num_groups)
+    var_out_ptr,  # Pointer to output variance tensor (N, num_groups)
+    N_CHANNELS,  # Total number of channels
+    N_H,  # Height
+    N_W,  # Width
+    NUM_GROUPS: tl.constexpr,  # Number of groups
+    CHANNELS_PER_GROUP: tl.constexpr,  # Channels per group
+    BLOCK_SIZE_HW: tl.constexpr,  # Block size for H*W dimension during internal reduction
+):
+    """
+    Triton kernel to calculate mean and variance for GroupNorm.
+    Each program instance calculates mean/var for one (batch, group) slice.
+    """
+    pid_n = tl.program_id(0)  # Batch index
+    pid_g = tl.program_id(1)  # Group index
+
+    # Calculate the starting channel index for this group
+    start_channel = pid_g * CHANNELS_PER_GROUP
+    
+    # Accumulators for sum and sum of squares, initialized as vectors for local reduction
+    sum_val = tl.zeros((BLOCK_SIZE_HW,), dtype=tl.float32)
+    sum_sq_val = tl.zeros((BLOCK_SIZE_HW,), dtype=tl.float32)
+
+    # Base pointer for the current batch slice
+    x_n_base_ptr = x_ptr + pid_n * N_CHANNELS * N_H * N_W
+
+    # Iterate over channels within the current group
+    for c_offset in tl.static_range(0, CHANNELS_PER_GROUP):
+        current_channel_idx = start_channel + c_offset
+        # Base pointer for the current (N, C) slice
+        x_c_base_ptr = x_n_base_ptr + current_channel_idx * N_H * N_W
+
+        # Iterate over H*W elements in blocks
+        for block_start_hw in tl.static_range(0, (N_H * N_W + BLOCK_SIZE_HW - 1) // BLOCK_SIZE_HW):
+            offsets_hw = block_start_hw * BLOCK_SIZE_HW + tl.arange(0, BLOCK_SIZE_HW)
+            mask_hw = offsets_hw < (N_H * N_W)
+
+            # Load a block of x values
+            x_block = tl.load(x_c_base_ptr + offsets_hw, mask=mask_hw, other=0.0)
+
+            # Accumulate sum and sum of squares
+            sum_val += x_block
+            sum_sq_val += x_block * x_block
+
+    # Reduce the accumulated sums from vector to scalar
+    sum_val = tl.sum(sum_val)
+    sum_sq_val = tl.sum(sum_sq_val)
+
+    # Calculate mean and variance for the group slice
+    num_elements_in_group_slice = CHANNELS_PER_GROUP * N_H * N_W
+    mean = sum_val / num_elements_in_group_slice
+    var = sum_sq_val / num_elements_in_group_slice - mean * mean
+
+    # Store the calculated mean and variance
+    mean_out_ptr_n_g = mean_out_ptr + pid_n * NUM_GROUPS + pid_g
+    var_out_ptr_n_g = var_out_ptr + pid_n * NUM_GROUPS + pid_g
+    tl.store(mean_out_ptr_n_g, mean)
+    tl.store(var_out_ptr_n_g, var)
+
+
+def triton_groupnorm_mean_var(x: torch.Tensor, num_groups: int):
+    """
+    Wrapper function to launch the Triton kernel for GroupNorm mean/variance calculation.
+    """
+    assert x.is_cuda, "Input tensor must be on CUDA."
+    x = x.contiguous()
+
+    N, C, H, W = x.shape
+    assert C % num_groups == 0, "Number of channels must be divisible by num_groups."
+    channels_per_group = C // num_groups
+
+    # Output tensors for mean and variance (N, num_groups)
+    mean_out = torch.empty((N, num_groups), dtype=x.dtype, device=x.device)
+    var_out = torch.empty((N, num_groups), dtype=x.dtype, device=x.device)
+
+    # Triton grid configuration: (batch_size, num_groups)
+    # Each program computes mean/var for one (N, G) slice.
+    grid = (N, num_groups)
+    BLOCK_SIZE_HW = 128  # Tunable parameter for internal H*W block processing
+
+    _groupnorm_mean_var_kernel[grid](
+        x, mean_out, var_out,
+        C, H, W,
+        NUM_GROUPS=num_groups,
+        CHANNELS_PER_GROUP=channels_per_group,
+        BLOCK_SIZE_HW=BLOCK_SIZE_HW,
+    )
+    return mean_out, var_out
+
+
+@triton.jit
+def _groupnorm_normalize_kernel(
+    x_ptr,  # Pointer to input tensor (N, C, H, W)
+    mean_ptr,  # Pointer to pre-calculated mean (N, num_groups)
+    var_ptr,  # Pointer to pre-calculated variance (N, num_groups)
+    weight_ptr,  # Pointer to weight (gamma) (C,)
+    bias_ptr,  # Pointer to bias (beta) (C,)
+    out_ptr,  # Pointer to output tensor (N, C, H, W)
+    N_CHANNELS,  # Total number of channels
+    N_H,  # Height
+    N_W,  # Width
+    NUM_GROUPS: tl.constexpr,  # Number of groups
+    CHANNELS_PER_GROUP: tl.constexpr,  # Channels per group
+    EPS: tl.constexpr,  # Epsilon for numerical stability
+    BLOCK_SIZE_HW: tl.constexpr,  # Block size for H*W dimension
+):
+    """
+    Triton kernel to apply GroupNorm normalization using pre-calculated mean and variance.
+    Each program instance processes a block of H*W elements for a specific (batch, channel) slice.
+    """
+    pid_n = tl.program_id(0)  # Batch index
+    pid_c = tl.program_id(1)  # Channel index
+
+    # Determine the group index for the current channel
+    pid_g = pid_c // CHANNELS_PER_GROUP
+
+    # Load group-specific mean and variance
+    mean_val = tl.load(mean_ptr + pid_n * NUM_GROUPS + pid_g)
+    var_val = tl.load(var_ptr + pid_n * NUM_GROUPS + pid_g)
+
+    # Load channel-specific weight and bias
+    weight_val = tl.load(weight_ptr + pid_c)
+    bias_val = tl.load(bias_ptr + pid_c)
+
+    # Calculate inverse standard deviation
+    rstd = 1 / tl.sqrt(var_val + EPS)
+
+    # Iterate over H*W for the current (N, C) slice
+    num_hw_elements = N_H * N_W
+    block_start_hw = tl.program_id(2) * BLOCK_SIZE_HW
+    offsets_hw = block_start_hw + tl.arange(0, BLOCK_SIZE_HW)
+
+    # Calculate global pointers for the current (N, C) slice
+    x_base_ptr = x_ptr + pid_n * N_CHANNELS * N_H * N_W + pid_c * N_H * N_W
+    out_base_ptr = out_ptr + pid_n * N_CHANNELS * N_H * N_W + pid_c * N_H * N_W
+
+    # Mask to ensure we don't go out of bounds for H*W
+    mask_hw = offsets_hw < num_hw_elements
+
+    # Load input values for the current block
+    x = tl.load(x_base_ptr + offsets_hw, mask=mask_hw, other=0.0)
+
+    # Perform GroupNorm calculation
+    normed_x = (x - mean_val) * rstd
+    out = normed_x * weight_val + bias_val
+
+    # Store the result
+    tl.store(out_base_ptr + offsets_hw, out, mask=mask_hw)
+
+
+def triton_groupnorm_normalize(x: torch.Tensor, mean: torch.Tensor, var: torch.Tensor, gn_module: nn.GroupNorm):
+    """
+    Wrapper function to launch the Triton kernel for GroupNorm normalization.
+    """
+    assert x.is_cuda, "Input tensor must be on CUDA."
+    x = x.contiguous()
+    mean = mean.contiguous()
+    var = var.contiguous()
+
+    # Get GroupNorm parameters from the module
+    weight = gn_module.weight.contiguous()
+    bias = gn_module.bias.contiguous()
+    eps = gn_module.eps
+    num_groups = gn_module.num_groups
+
+    N, C, H, W = x.shape
+    assert C % num_groups == 0, "Number of channels must be divisible by num_groups."
+    channels_per_group = C // num_groups
+
+    out = torch.empty_like(x)
+
+    # Triton grid configuration: (batch_size, num_channels, num_blocks_hw)
+    # Each program handles a (N, C) slice, processing H*W elements in blocks.
+    BLOCK_SIZE_HW = 128  # Tunable parameter for block size along H*W
+    num_hw_elements = H * W
+    num_blocks_hw = (num_hw_elements + BLOCK_SIZE_HW - 1) // BLOCK_SIZE_HW
+
+    grid = (N, C, num_blocks_hw)
+
+    _groupnorm_normalize_kernel[grid](
+        x, mean, var, weight, bias, out,
+        C, H, W,
+        NUM_GROUPS=num_groups,
+        CHANNELS_PER_GROUP=channels_per_group,
+        EPS=eps,
+        BLOCK_SIZE_HW=BLOCK_SIZE_HW,
+    )
+    return out
+
+
+# --- Optimized Model Architecture ---
+
+class ModelNew(nn.Module):
+    """
+    Optimized Model that performs a transposed convolution, fused batch normalization + tanh activation,
+    max pooling, and custom Triton-based group normalization.
+    """
+    def __init__(self, in_channels, out_channels, kernel_size, stride, padding, groups, num_groups):
+        super(ModelNew, self).__init__()
+        # ConvTranspose2d is kept as a PyTorch operator
+        self.conv_transpose = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride=stride, padding=padding)
+        
+        # BatchNorm2d is kept, but its forward pass will be replaced by a fused Triton kernel
+        self.batch_norm = nn.BatchNorm2d(out_channels)
+        
+        # Tanh is fused into the custom batch_norm_tanh kernel, so no separate module is needed
+        
+        # MaxPool2d is kept as a PyTorch operator
+        self.max_pool = nn.MaxPool2d(kernel_size=2, stride=2)
+        
+        # GroupNorm is kept, but its forward pass will be replaced by custom Triton kernels
+        self.group_norm = nn.GroupNorm(num_groups=num_groups, num_channels=out_channels)
+
+    def forward(self, x):
+        x = self.conv_transpose(x)
+        
+        # Replace BatchNorm2d and Tanh with our fused Triton kernel
+        x = triton_batchnorm_tanh(x, self.batch_norm)
+        
+        x = self.max_pool(x)
+        
+        # Replace GroupNorm with our two-stage Triton kernels
+        # 1. Calculate mean and variance per group
+        mean, var = triton_groupnorm_mean_var(x, self.group_norm.num_groups)
+        # 2. Apply normalization using the calculated mean and variance
+        x = triton_groupnorm_normalize(x, mean, var, self.group_norm)
+        
+        return x

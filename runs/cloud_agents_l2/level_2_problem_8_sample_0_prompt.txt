@@ -1,0 +1,149 @@
+You write custom Triton kernels to replace the pytorch operators in the given architecture to get speedups.
+
+You have complete freedom to choose the set of operators you want to replace. You may make the decision to replace some operators with custom Triton kernels and leave others unchanged. You may replace multiple operators with custom implementations, consider operator fusion opportunities (combining multiple operators into a single kernel, for example, combining matmul+relu), or algorithmic changes (such as online softmax). You are only limited by your imagination.
+
+Here's an example to show you the syntax of inline embedding custom Triton kernels in PyTorch:
+
+Example:
+
+Input architecture:
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+
+class Model(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def forward(self, a, b):
+        return a + b
+
+
+def get_inputs():
+    # randomly generate input tensors based on the model architecture
+    a = torch.randn(1, 128).cuda()
+    b = torch.randn(1, 128).cuda()
+    return [a, b]
+
+
+def get_init_inputs():
+    # randomly generate tensors required for initialization based on the model architecture
+    return []
+
+
+Optimized with Triton kernels:
+
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import triton
+import triton.language as tl
+
+
+@triton.jit
+def add_kernel(
+    x_ptr,  # Pointer to first input
+    y_ptr,  # Pointer to second input
+    out_ptr,  # Pointer to output
+    n_elements,  # Total number of elements in input/output
+    BLOCK_SIZE: tl.constexpr,
+):
+    # Each program handles a contiguous block of data of size BLOCK_SIZE
+    block_start = tl.program_id(0) * BLOCK_SIZE
+    # Create a range of offsets [0..BLOCK_SIZE-1]
+    offsets = block_start + tl.arange(0, BLOCK_SIZE)
+    # Mask to ensure we don't go out of bounds
+    mask = offsets < n_elements
+    # Load input values
+    x = tl.load(x_ptr + offsets, mask=mask, other=0.0)
+    y = tl.load(y_ptr + offsets, mask=mask, other=0.0)
+    # Perform the elementwise addition
+    out = x + y
+    # Store the result
+    tl.store(out_ptr + offsets, out, mask=mask)
+
+
+def triton_add(x: torch.Tensor, y: torch.Tensor):
+    """
+    This function wraps the Triton kernel call. It:
+      1. Ensures the inputs are contiguous on GPU.
+      2. Calculates the grid (blocks) needed.
+      3. Launches the Triton kernel.
+    """
+    assert x.is_cuda and y.is_cuda, "Tensors must be on CUDA."
+    x = x.contiguous()
+    y = y.contiguous()
+
+    # Prepare output tensor
+    out = torch.empty_like(x)
+
+    # Number of elements in the tensor
+    n_elements = x.numel()
+    BLOCK_SIZE = 128  # Tunable parameter for block size
+
+    # Determine the number of blocks needed
+    grid = lambda meta: ((n_elements + meta["BLOCK_SIZE"] - 1) // meta["BLOCK_SIZE"],)
+
+    # Launch the Triton kernel
+    add_kernel[grid](x, y, out, n_elements, BLOCK_SIZE=BLOCK_SIZE)
+    return out
+
+
+class ModelNew(nn.Module):
+    def __init__(self) -> None:
+        super().__init__()
+
+    def forward(self, a, b):
+        # Instead of "return a + b", call our Triton-based addition
+        return triton_add(a, b)
+
+You are given the following architecture:
+
+
+import torch
+import torch.nn as nn
+
+class Model(nn.Module):
+    """
+    Model that performs a 3D convolution, divides by a constant, applies max pooling,
+    global average pooling, adds a bias term, and sums along a specific dimension.
+    """
+    def __init__(self, in_channels, out_channels, kernel_size, divisor, pool_size, bias_shape, sum_dim):
+        super(Model, self).__init__()
+        self.conv = nn.Conv3d(in_channels, out_channels, kernel_size)
+        self.divisor = divisor
+        self.max_pool = nn.MaxPool3d(pool_size)
+        self.global_avg_pool = nn.AdaptiveAvgPool3d((1, 1, 1))
+        self.bias = nn.Parameter(torch.randn(bias_shape))
+        self.sum_dim = sum_dim
+
+    def forward(self, x):
+        x = self.conv(x)
+        x = x / self.divisor
+        x = self.max_pool(x)
+        x = self.global_avg_pool(x)
+        x = x + self.bias
+        x = torch.sum(x, dim=self.sum_dim)
+        return x
+
+batch_size   = 128  
+in_channels  = 8            
+out_channels = 16  
+depth = 16; height = width = 64 
+kernel_size = (3, 3, 3)
+divisor = 2.0
+pool_size = (2, 2, 2)
+bias_shape = (out_channels, 1, 1, 1)
+sum_dim = 1
+
+def get_inputs():
+    return [torch.rand(batch_size, in_channels, depth, height, width)]
+
+def get_init_inputs():
+    return [in_channels, out_channels, kernel_size, divisor, pool_size, bias_shape, sum_dim]
+
+Note: The kernels should be optimized for FP32 (32-bit floating point) precision.
+
+Optimize the architecture named Model with custom Triton kernels! Name your optimized output architecture ModelNew. Output the new code in codeblocks. Please generate real code, NOT pseudocode, make sure the code compiles and is fully functional. Just output the new model code, no other text, and NO testing code!

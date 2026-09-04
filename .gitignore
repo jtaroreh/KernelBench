@@ -7,9 +7,13 @@ scratch/
 # **results/
 results/*
 runs/*
+!runs/cloud_agents_l2/
 cache/*
 !results/timing/
 .env
 _build_cache/
 uv.lock
 CLAUDE.md
+.agents/skills/modal/
+.DS_Store
+**/.DS_Store

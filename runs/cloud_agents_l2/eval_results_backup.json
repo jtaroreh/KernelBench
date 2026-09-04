@@ -1,0 +1,1276 @@
+{
+    "1": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 11.4,
+            "runtime_stats": {
+                "mean": 11.4,
+                "std": 0.191,
+                "min": 11.1,
+                "max": 11.6,
+                "num_trials": 10,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "2": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 35:17:\n    # bias is (C, 1, 1)\n    # The linear index 'offsets' maps to (b, c, h, w)\n    # To get 'c' from 'offsets':\n    # c_idx = (offsets % (C_DIM * H_OUT_DIM * W_OUT_DIM)) // (H_OUT_DIM * W_...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 43, in wrapper\n    return fn(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 3047, in reduce\n    return reduce((input, ), axis, combine_fn, keep_dims=keep_dims, _semantic=_semantic, _generator=_generator)[0]\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 43, in wrapper\n    return fn(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 3072, in reduce\n    axis = _wrap_axis(axis, len(input[0].shape))\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 2287, in _wrap_axis\n    raise ValueError(f\"invalid axis {axis}. Expected {-ndim} <= axis < {ndim}\")\nValueError: invalid axis 1.0. Expected -1 <= axis < 1\n\nThe above exception was the direct cause of the following exception:\n\ntriton.compiler.errors.CompilationError: at 15:15:\n        if return_indices_tie_break_left:\n            return core._reduce_with_indices(input, axis, _argmin_combine_tie_break_left, keep_dims=keep_dims)\n        else:\n            return core._reduce_with_indices(input, axis, _argmin_combine_tie_break_fast, keep_dims=keep_dims)\n    else:\n        if core.constexpr(input.dtype.primitive_bitwidth) < 32:\n            if core.constexpr(input.dtype.is_floating()):\n                input = input.to(core.float32)\n            else:\n                assert input.dtype.is_int(), \"Expecting input to be integer type\"\n                input = input.to(core.int32)\n        return core.reduce(input, axis, _elementwise_min, keep_dims=keep_dims)\n               ^\ninvalid axis 1.0. Expected -1 <= axis < 1\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpght1hi9a.py\", line 112, in forward\n    x = triton_fused_op(x, self.bias, self.scaling_factor)\n  File \"/tmp/tmpght1hi9a.py\", line 85, in triton_fused_op\n    fused_bias_clamp_scale_clamp_div_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 35:17:\n    # bias is (C, 1, 1)\n    # The linear index 'offsets' maps to (b, c, h, w)\n    # To get 'c' from 'offsets':\n    # c_idx = (offsets % (C_DIM * H_OUT_DIM * W_OUT_DIM)) // (H_OUT_DIM * W_OUT_DIM)\n    c_idx = (offsets % (C_DIM * H_OUT_DIM * W_OUT_DIM)) // (H_OUT_DIM * W_OUT_DIM)\n    bias = tl.load(bias_ptr + c_idx, mask=mask, other=0.0) # Bias is (C,1,1), so we just need the channel index\n\n    # Perform fused operations\n    # 1. Add bias\n    out = x + bias\n    # 2. Clamp [0.0, 1.0]\n    out = tl.max(tl.min(out, 1.0), 0.0)\n                 ^\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "3": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "dynamic_func() missing 5 required positional arguments: 'stride_out_c', 'stride_out_d', 'stride_out_h', 'stride_out_w', and 'eps'",
+                "runtime_error_name": "builtins.TypeError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpfl64dfjf.py\", line 169, in forward\n    x = triton_fused_add_layernorm_gelu(\n  File \"/tmp/tmpfl64dfjf.py\", line 141, in triton_fused_add_layernorm_gelu\n    fused_add_layernorm_gelu_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 741, in run\n    bound_args, specialization, options = binder(*args, **kwargs)\nTypeError: dynamic_func() missing 5 required positional arguments: 'stride_out_c', 'stride_out_d', 'stride_out_h', 'stride_out_w', and 'eps'\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "4": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 28:22:\n    mask = offsets < n_elements\n\n    # Load input values, ensuring FP32 precision\n    x = tl.load(x_ptr + offsets, mask=mask, other=0.0).to(tl.float32)\n\n    # First Mish activation: y = x...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpqwpuoutl.py\", line 98, in forward\n    x = triton_double_mish(x)\n  File \"/tmp/tmpqwpuoutl.py\", line 78, in triton_double_mish\n    double_mish_kernel[grid](x, out, n_elements, BLOCK_SIZE=BLOCK_SIZE)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 28:22:\n    mask = offsets < n_elements\n\n    # Load input values, ensuring FP32 precision\n    x = tl.load(x_ptr + offsets, mask=mask, other=0.0).to(tl.float32)\n\n    # First Mish activation: y = x * tanh(softplus(x))\n    # Compute exp(x)\n    exp_x = tl.exp(x)\n    # Compute softplus(x) = log(1 + exp(x))\n    softplus_x = tl.log(1.0 + exp_x)\n    # Compute tanh(softplus(x))\n    tanh_softplus_x = tl.tanh(softplus_x)\n                      ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "5": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 55:10:\n    x_ptrs = x_ptr + idx_b * STRIDE_X_B + idx_c * STRIDE_X_C + idx_h * STRIDE_X_H + idx_w * STRIDE_X_W\n    # Bias is (C,1,1), so its value only depends on the channel index\n    bias_ptrs ...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpcwswsb5q.py\", line 133, in forward\n    x = triton_subtract_bias_tanh(x, self.bias)\n  File \"/tmp/tmpcwswsb5q.py\", line 108, in triton_subtract_bias_tanh\n    subtract_bias_tanh_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 55:10:\n    x_ptrs = x_ptr + idx_b * STRIDE_X_B + idx_c * STRIDE_X_C + idx_h * STRIDE_X_H + idx_w * STRIDE_X_W\n    # Bias is (C,1,1), so its value only depends on the channel index\n    bias_ptrs = bias_ptr + idx_c * STRIDE_BIAS_C\n    out_ptrs = out_ptr + idx_b * STRIDE_OUT_B + idx_c * STRIDE_OUT_C + idx_h * STRIDE_OUT_H + idx_w * STRIDE_OUT_W\n\n    # Load values from memory\n    x = tl.load(x_ptrs, mask=mask, other=0.0)\n    bias_val = tl.load(bias_ptrs, mask=mask, other=0.0)\n\n    # Perform the fused operations: subtract bias, then apply tanh\n    subtracted = x - bias_val\n    out = tl.tanh(subtracted)\n          ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "6": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 42:20:\n    # This assumes the window is always valid and not empty.\n    max_val = tl.load(input_ptr + b * stride_b_in + c * stride_c_in +\n                      d_in_start * stride_d_in + h_in_st...",
+                "runtime_error_name": "triton.compiler.errors.UnsupportedLanguageConstruct",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpl7tump2p.py\", line 228, in forward\n    x = triton_max_pool3d(x, self.pool_kernel_size, self.pool_stride)\n  File \"/tmp/tmpl7tump2p.py\", line 192, in triton_max_pool3d\n    max_pool3d_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.UnsupportedLanguageConstruct: at 42:20:\n    # This assumes the window is always valid and not empty.\n    max_val = tl.load(input_ptr + b * stride_b_in + c * stride_c_in +\n                      d_in_start * stride_d_in + h_in_start * stride_h_in +\n                      w_in_start * stride_w_in)\n\n    # Iterate over the pooling window (kernel_size x kernel_size x kernel_size)\n    for kd in tl.static_range(kernel_size):\n        for kh in tl.static_range(kernel_size):\n            for kw in tl.static_range(kernel_size):\n                # Skip the first element as it's already loaded\n                if kd == 0 and kh == 0 and kw == 0:\n                    continue\n                    ^\nunsupported AST node type: Continue\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "7": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 12.0,
+            "runtime_stats": {
+                "mean": 12.0,
+                "std": 0.83,
+                "min": 11.1,
+                "max": 14.3,
+                "num_trials": 10,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "8": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "9": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": true,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "correctness_trials": "(1 / 1)"
+            },
+            "runtime": 3.6,
+            "runtime_stats": {
+                "mean": 3.6,
+                "std": 0.0517,
+                "min": 3.55,
+                "max": 3.67,
+                "num_trials": 10,
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0"
+            }
+        }
+    ],
+    "10": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 55:15:\n        # Accumulate the hardtanh-activated values\n        # Only add valid elements (where mask is true)\n        acc += tl.where(mask, hardtanh_block, 0.0)\n\n    # Perform reduction acros...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp_iy2g_wd.py\", line 141, in forward\n    x = triton_hardtanh_mean_tanh(x, self.hardtanh_min, self.hardtanh_max)\n  File \"/tmp/tmp_iy2g_wd.py\", line 102, in triton_hardtanh_mean_tanh\n    hardtanh_mean_tanh_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 55:15:\n        # Accumulate the hardtanh-activated values\n        # Only add valid elements (where mask is true)\n        acc += tl.where(mask, hardtanh_block, 0.0)\n\n    # Perform reduction across the accumulated blocks to get the total sum for the slice\n    total_sum = tl.sum(acc, axis=0)\n\n    # Calculate the mean\n    mean_val = total_sum / num_elements_per_slice\n\n    # Apply Tanh activation\n    tanh_val = tl.tanh(mean_val)\n               ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "11": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 50:10:\n    # Mask to ensure we don't go out of bounds for H*W\n    mask_hw = offsets_hw < num_hw_elements\n\n    # Load input values for the current block\n    x = tl.load(x_base_ptr + offsets_hw, m...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmprjhsfara.py\", line 320, in forward\n    x = triton_batchnorm_tanh(x, self.batch_norm)\n  File \"/tmp/tmprjhsfara.py\", line 91, in triton_batchnorm_tanh\n    _batchnorm_tanh_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 50:10:\n    # Mask to ensure we don't go out of bounds for H*W\n    mask_hw = offsets_hw < num_hw_elements\n\n    # Load input values for the current block\n    x = tl.load(x_base_ptr + offsets_hw, mask=mask_hw, other=0.0)\n\n    # Perform BatchNorm calculation\n    normed_x = (x - mean_val) * rstd\n    scaled_shifted_x = normed_x * weight_val + bias_val\n\n    # Apply Tanh activation\n    out = tl.tanh(scaled_shifted_x)\n          ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "12": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 58:23:\n\n    for k in range(0, K, BLOCK_K):\n        # Load a block of A (BLOCK_M x BLOCK_K)\n        a = tl.load(a_ptrs + k * stride_ak,\n                    mask=(offs_am[:, None] < M) & ((k + off...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 43, in wrapper\n    return fn(*args, **kwargs)\nTypeError: dot() got an unexpected keyword argument 'trans_b'\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp6xv5iarj.py\", line 163, in forward\n    return triton_fused_linear_scalar_mul_leaky_relu(\n  File \"/tmp/tmp6xv5iarj.py\", line 134, in triton_fused_linear_scalar_mul_leaky_relu\n    fused_linear_scalar_mul_leaky_relu_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 58:23:\n\n    for k in range(0, K, BLOCK_K):\n        # Load a block of A (BLOCK_M x BLOCK_K)\n        a = tl.load(a_ptrs + k * stride_ak,\n                    mask=(offs_am[:, None] < M) & ((k + offs_ak[None, :]) < K),\n                    other=0.0)\n        # Load a block of B (BLOCK_N x BLOCK_K)\n        b = tl.load(b_ptrs + k * stride_bk,\n                    mask=(offs_bn[:, None] < N) & ((k + offs_bk[None, :]) < K),\n                    other=0.0)\n        # Perform matrix multiplication: A (BLOCK_M x BLOCK_K) @ B.T (BLOCK_K x BLOCK_N)\n        accumulator += tl.dot(a, b, trans_b=True)\n                       ^\ndot() got an unexpected keyword argument 'trans_b'\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "13": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 22:12:\n):\n    \"\"\"\n    Triton kernel to perform mean pooling over the depth dimension (D)\n    and then add a broadcastable bias.\n\n    Each program instance handles one (batch, channel, height, wi...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 43, in wrapper\n    return fn(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 1960, in program_id\n    return _semantic.program_id(axis)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/semantic.py\", line 41, in program_id\n    raise ValueError(f\"program_id axis must be 0, 1, or 2 but got {axis}\")\nValueError: program_id axis must be 0, 1, or 2 but got 3\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmpgz90_cjf.py\", line 216, in forward\n    x = triton_mean_pool_add_bias(x, self.bias)           # (B, C_out, 1, H, W)\n  File \"/tmp/tmpgz90_cjf.py\", line 88, in triton_mean_pool_add_bias\n    mean_pool_depth_add_bias_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 22:12:\n):\n    \"\"\"\n    Triton kernel to perform mean pooling over the depth dimension (D)\n    and then add a broadcastable bias.\n\n    Each program instance handles one (batch, channel, height, width) slice.\n    It iterates over the depth dimension (D) to compute the mean.\n    \"\"\"\n    idx_b = tl.program_id(0)\n    idx_c = tl.program_id(1)\n    idx_h = tl.program_id(2)\n    idx_w = tl.program_id(3)\n            ^\nprogram_id axis must be 0, 1, or 2 but got 3\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "14": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 54:4:\n        b_ptrs = B_vec_ptr + (k_idx + tl.arange(0, BLOCK_SIZE_K)) * stride_bk\n        b_block = tl.load(b_ptrs, mask=(k_idx + tl.arange(0, BLOCK_SIZE_K)) < K, other=0.0)\n\n        # Perform...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 43, in wrapper\n    return fn(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/core.py\", line 2610, in store\n    return _semantic.store(pointer, value, mask, boundary_check, cache_modifier, eviction_policy)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/language/semantic.py\", line 1225, in store\n    raise ValueError(\"Value argument cannot be block type if pointer argument is not a block\")\nValueError: Value argument cannot be block type if pointer argument is not a block\n\nThe above exception was the direct cause of the following exception:\n\nTraceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp_16iev5u.py\", line 133, in forward\n    fused_dot_product_scale_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 54:4:\n        b_ptrs = B_vec_ptr + (k_idx + tl.arange(0, BLOCK_SIZE_K)) * stride_bk\n        b_block = tl.load(b_ptrs, mask=(k_idx + tl.arange(0, BLOCK_SIZE_K)) < K, other=0.0)\n\n        # Perform element-wise multiplication and sum reduction\n        acc += tl.sum(a_block * b_block)\n\n    # Apply the combined scalar factor\n    final_output = acc * scalar_factor\n\n    # Store the result in the output tensor C\n    c_ptrs = C_ptr + m * stride_cm\n    tl.store(c_ptrs, final_output)\n    ^\nValue argument cannot be block type if pointer argument is not a block\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "15": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "16": [
+        {
+            "sample_id": 0,
+            "compiled": true,
+            "correctness": false,
+            "metadata": {
+                "hardware": "NVIDIA L40S",
+                "device": "cuda:0",
+                "runtime_error": "at 23:22:\n    offsets = block_start + tl.arange(0, BLOCK_SIZE)\n    # Mask to ensure we don't go out of bounds\n    mask = offsets < n_elements\n\n    # Load input values\n    x = tl.load(x_ptr + offset...",
+                "runtime_error_name": "triton.compiler.errors.CompilationError",
+                "runtime_error_traceback": "Traceback (most recent call last):\n  File \"/root/src/kernelbench/eval.py\", line 782, in run_and_check_correctness\n    output_new = model_new(*inputs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1783, in _wrapped_call_impl\n    return self._call_impl(*args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/torch/nn/modules/module.py\", line 1794, in _call_impl\n    return forward_call(*args, **kwargs)\n  File \"/tmp/tmp_wbw3okz.py\", line 95, in forward\n    x = triton_fused_activation_ops(x, self.add_value, self.scale)\n  File \"/tmp/tmp_wbw3okz.py\", line 67, in triton_fused_activation_ops\n    fused_mish_add_hardtanh_mul_kernel[grid](\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 374, in <lambda>\n    return lambda *args, **kwargs: self.run(grid=grid, warmup=False, *args, **kwargs)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 757, in run\n    kernel = self._do_compile(key, signature, device, constexprs, options, attrs, warmup)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/runtime/jit.py\", line 902, in _do_compile\n    kernel = self.compile(src, target=target, options=options.__dict__)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 307, in compile\n    module = src.make_ir(target, options, codegen_fns, module_map, context)\n  File \"/.uv/.venv/lib/python3.10/site-packages/triton/compiler/compiler.py\", line 80, in make_ir\n    return ast_to_ttir(self.fn, self, context=context, options=options, codegen_fns=codegen_fns,\ntriton.compiler.errors.CompilationError: at 23:22:\n    offsets = block_start + tl.arange(0, BLOCK_SIZE)\n    # Mask to ensure we don't go out of bounds\n    mask = offsets < n_elements\n\n    # Load input values\n    x = tl.load(x_ptr + offsets, mask=mask, other=0.0).to(tl.float32)\n\n    # --- Mish activation ---\n    # softplus(x) = log(1 + exp(x))\n    softplus_x = tl.log(1 + tl.exp(x))\n    # tanh(softplus(x))\n    tanh_softplus_x = tl.tanh(softplus_x)\n                      ^\nAttributeError(\"module 'triton.language' has no attribute 'tanh'\")\n"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "17": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "18": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "19": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "20": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "21": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "22": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "23": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "24": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "25": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "26": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "27": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "28": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "29": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "30": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "31": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "32": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "33": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "34": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "35": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "36": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "37": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "38": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "39": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "40": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "41": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "42": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "43": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "44": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "45": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "46": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "47": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "48": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "49": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "50": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "51": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "52": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "53": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "54": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "55": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "56": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "57": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "58": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "59": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "60": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "61": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "62": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "63": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "64": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "65": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "66": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "67": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "68": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "69": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "70": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "71": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "72": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "73": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "74": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "75": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "76": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "77": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "78": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "79": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "80": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "81": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "82": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "83": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "84": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "85": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "86": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "87": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "88": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "89": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "90": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "91": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "92": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "93": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "94": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "95": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "96": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "97": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "98": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "99": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ],
+    "100": [
+        {
+            "sample_id": 0,
+            "compiled": false,
+            "correctness": false,
+            "metadata": {
+                "error": "Future was None - evaluation did not complete"
+            },
+            "runtime": -1.0,
+            "runtime_stats": {}
+        }
+    ]
+}
