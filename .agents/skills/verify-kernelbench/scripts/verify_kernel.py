@@ -45,7 +45,24 @@ def lint_kernel_ast(kernel_src: str, backend: str = "triton") -> tuple[list[str]
 
     if backend == "triton":
         jit_funcs = {}
+        triton_modules = {"tl", "triton.language", "triton.language.math", "tl.math"}
+        disallowed_imports = set()
+
         for node in ast.walk(tree):
+            if isinstance(node, ast.Import):
+                for alias in node.names:
+                    if alias.name in ("triton.language", "triton.language.math"):
+                        triton_modules.add(alias.asname or alias.name)
+            elif isinstance(node, ast.ImportFrom):
+                mod = node.module or ""
+                if mod in ("triton.language", "triton.language.math", "tl", "tl.math") or mod.startswith("triton.language."):
+                    for alias in node.names:
+                        local_name = alias.asname or alias.name
+                        if alias.name == "tanh":
+                            disallowed_imports.add((local_name, "Neither tl.tanh nor tl.math.tanh exist in Modal's Triton runtime; compute tanh via the sigmoid identity: 2.0 * tl.sigmoid(2.0 * x) - 1.0"))
+                        elif alias.name == "pow":
+                            disallowed_imports.add((local_name, "tl.pow does not exist in triton.language; compute powers via x * x or Python ** operator"))
+
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 for dec in node.decorator_list:
                     target = dec.func if isinstance(dec, ast.Call) else dec
@@ -55,24 +72,31 @@ def lint_kernel_ast(kernel_src: str, backend: str = "triton") -> tuple[list[str]
                         jit_funcs[node.name] = params
                         break
 
+        for local_name, err in disallowed_imports:
+            if err not in errors:
+                errors.append(err)
+
         for node in ast.walk(tree):
             if isinstance(node, ast.Attribute):
                 attr_name = _get_attr_name(node)
-                if attr_name in ("tl.tanh", "triton.language.tanh", "tl.math.tanh", "triton.language.math.tanh"):
-                    err = "Neither tl.tanh nor tl.math.tanh exist in Modal's Triton runtime; compute tanh via the sigmoid identity: 2.0 * tl.sigmoid(2.0 * x) - 1.0"
-                    if err not in errors:
-                        errors.append(err)
-                elif attr_name in ("tl.pow", "triton.language.pow"):
-                    err = "tl.pow does not exist in triton.language; compute powers via x * x or Python ** operator"
-                    if err not in errors:
-                        errors.append(err)
+                if attr_name:
+                    base_mod = attr_name.rsplit(".", 1)[0]
+                    attr_tail = attr_name.split(".")[-1]
+                    if attr_tail == "tanh" and (base_mod in triton_modules or "triton" in base_mod or "tl" in base_mod.split(".")):
+                        err = "Neither tl.tanh nor tl.math.tanh exist in Modal's Triton runtime; compute tanh via the sigmoid identity: 2.0 * tl.sigmoid(2.0 * x) - 1.0"
+                        if err not in errors:
+                            errors.append(err)
+                    elif attr_tail == "pow" and (base_mod in triton_modules or "triton" in base_mod or "tl" in base_mod.split(".")):
+                        err = "tl.pow does not exist in triton.language; compute powers via x * x or Python ** operator"
+                        if err not in errors:
+                            errors.append(err)
 
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                 is_triton = node.name in jit_funcs
                 if is_triton:
-                    for child in node.body:
-                        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                            err = f"Nested function '{child.name}' inside @triton.jit kernel '{node.name}' is unsupported. Hoist helper functions to module level decorated with @triton.jit."
+                    for subnode in ast.walk(node):
+                        if subnode is not node and isinstance(subnode, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                            err = f"Nested function '{subnode.name}' inside @triton.jit kernel '{node.name}' is unsupported. Hoist helper functions to module level decorated with @triton.jit."
                             if err not in errors:
                                 errors.append(err)
 
@@ -83,7 +107,12 @@ def lint_kernel_ast(kernel_src: str, backend: str = "triton") -> tuple[list[str]
                                 errors.append(err)
                         elif isinstance(subnode, ast.Call):
                             call_name = _get_attr_name(subnode.func)
-                            if call_name in ("tl.exp", "triton.language.exp", "tl.math.exp"):
+                            if call_name:
+                                if call_name.endswith(".tanh") or call_name == "tanh":
+                                    err = "Neither tl.tanh nor tl.math.tanh exist in Modal's Triton runtime; compute tanh via the sigmoid identity: 2.0 * tl.sigmoid(2.0 * x) - 1.0"
+                                    if err not in errors:
+                                        errors.append(err)
+                            if call_name in ("tl.exp", "triton.language.exp", "tl.math.exp") or (call_name and call_name.endswith(".exp") and call_name.rsplit(".", 1)[0] in triton_modules):
                                 is_clamped = False
                                 if subnode.args:
                                     arg = subnode.args[0]
@@ -96,22 +125,29 @@ def lint_kernel_ast(kernel_src: str, backend: str = "triton") -> tuple[list[str]
                 else:
                     for subnode in ast.walk(node):
                         if isinstance(subnode, ast.Call):
-                            if isinstance(subnode.func, ast.Name) and subnode.func.id in jit_funcs:
-                                err = f"Direct host invocation of @triton.jit function '{subnode.func.id}' without launch grid '[grid](...)'; causes 'RuntimeError: Cannot call @triton.jit\'d outside of the scope of a kernel'"
+                            func_full = _get_attr_name(subnode.func)
+                            func_id = func_full.split(".")[-1] if func_full else None
+                            if func_id and func_id in jit_funcs and not isinstance(subnode.func, ast.Subscript):
+                                err = f"Direct host invocation of @triton.jit function '{func_id}' without launch grid '[grid](...)'; causes 'RuntimeError: Cannot call @triton.jit\'d outside of the scope of a kernel'"
                                 if err not in errors:
                                     errors.append(err)
 
             if isinstance(node, ast.Call):
                 if isinstance(node.func, ast.Subscript):
-                    kernel_name = _get_attr_name(node.func.value)
+                    raw_kernel_name = _get_attr_name(node.func.value)
+                    kernel_name = raw_kernel_name.split(".")[-1] if raw_kernel_name else ""
                     kw_names = [kw.arg for kw in node.keywords if kw.arg is not None]
                     if len(kw_names) != len(set(kw_names)):
-                        err = f"Duplicate keyword arguments detected in launch for kernel '{kernel_name}': {kw_names}"
+                        err = f"Duplicate keyword arguments detected in launch for kernel '{raw_kernel_name}': {kw_names}"
                         if err not in errors:
                             errors.append(err)
                     if kernel_name in jit_funcs:
                         params = jit_funcs[kernel_name]
                         num_pos = len(node.args)
+                        if num_pos > len(params):
+                            err = f"Too many positional arguments ({num_pos}) passed to kernel '{kernel_name}' which defines {len(params)} parameters; causes TypeError in launch binder"
+                            if err not in errors:
+                                errors.append(err)
                         pos_params = params[:num_pos]
                         for kw in kw_names:
                             if kw in pos_params:
@@ -133,9 +169,18 @@ def _find_baseline_entry(baseline_json, level: int, problem):
     search_keys = []
     if problem.name:
         search_keys.append(problem.name)
+        if problem.name.endswith(".py"):
+            search_keys.append(problem.name[:-3])
+        else:
+            search_keys.append(f"{problem.name}.py")
     if problem.path:
         search_keys.append(problem.path)
-        search_keys.append(os.path.basename(problem.path))
+        base = os.path.basename(problem.path)
+        search_keys.append(base)
+        if base.endswith(".py"):
+            search_keys.append(base[:-3])
+        else:
+            search_keys.append(f"{base}.py")
     search_keys.extend([str(problem.problem_id), problem.problem_id])
 
     for d in dicts_to_search:
@@ -145,41 +190,63 @@ def _find_baseline_entry(baseline_json, level: int, problem):
     return None
 
 
+def _find_git_repo_root(start_dir: str) -> str:
+    curr = os.path.abspath(start_dir)
+    while curr and curr != os.path.dirname(curr):
+        git_dir = os.path.join(curr, ".git")
+        if os.path.exists(git_dir):
+            if os.path.isfile(git_dir):
+                try:
+                    with open(git_dir, "r") as f:
+                        line = f.read().strip()
+                    if line.startswith("gitdir:"):
+                        git_path = line.split("gitdir:", 1)[1].strip()
+                        if not os.path.isabs(git_path):
+                            git_path = os.path.abspath(os.path.join(curr, git_path))
+                        if ".git" in git_path:
+                            main_git = git_path[:git_path.index(".git") + 4]
+                            return os.path.dirname(main_git)
+                except Exception:
+                    pass
+            return curr
+        curr = os.path.dirname(curr)
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
+
+
 def _make_serializable(obj):
     if isinstance(obj, (str, int, float, bool, type(None))):
         return obj
     elif isinstance(obj, dict):
         return {str(k): _make_serializable(v) for k, v in obj.items()}
-    elif isinstance(obj, (list, tuple)):
-        return [_make_serializable(v) for v in obj]
+    elif isinstance(obj, (list, tuple, set)):
+        return [_make_serializable(item) for item in obj]
     else:
         return str(obj)
 
 
-def parse_args():
-    parser = argparse.ArgumentParser(description="Robust single kernel verification tool for KernelBench")
-    parser.add_argument("--level", type=int, required=True, help="KernelBench level (1, 2, or 3)")
-    parser.add_argument("--problem-id", type=int, required=True, help="Logical problem ID (1-indexed)")
-    parser.add_argument("--kernel", type=str, required=True, help="Path to custom kernel source file")
-    parser.add_argument("--gpu", type=str, default="L40S", help="Modal GPU type (L40S, H100, A100, L4, etc.)")
-    parser.add_argument("--backend", type=str, default="triton", choices=["triton", "cuda", "tilelang", "cute"], help="Kernel backend")
-    parser.add_argument("--precision", type=str, default="fp32", choices=["fp32", "fp16", "bf16"], help="Precision")
-    parser.add_argument("--num-correct-trials", type=int, default=5, help="Number of randomized correctness trials")
-    parser.add_argument("--num-perf-trials", type=int, default=50, help="Number of performance timing trials")
-    parser.add_argument("--timeout", type=int, default=180, help="Execution timeout in seconds")
-    parser.add_argument("--json-out", type=str, default=None, help="Path to write structured JSON verification results")
-    parser.add_argument("--lint-only", action="store_true", help="Run local static and Triton AST checks only without cloud compute")
-    parser.add_argument("--quick", action="store_true", help="Quick mode: 1 correctness trial, 0 perf trials, skip baseline timing")
-    parser.add_argument("--use-cached-baseline", action="store_true", default=True, help="Use cached eager baseline from results/timing/ if available")
-    parser.add_argument("--no-cached-baseline", action="store_false", dest="use_cached_baseline", help="Force remote baseline timing even if cached baseline exists")
-    return parser.parse_args()
-
-
 def main():
-    args = parse_args()
+    parser = argparse.ArgumentParser(
+        description="Verify a KernelBench kernel implementation for compilation, correctness, and performance.",
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter,
+    )
+    parser.add_argument("--level", type=int, required=True, choices=[1, 2, 3], help="KernelBench benchmark level (1, 2, or 3)")
+    parser.add_argument("--problem-id", type=int, required=True, help="Problem index within the benchmark level (1-indexed)")
+    parser.add_argument("--kernel", type=str, required=True, help="Path to Python file defining ModelNew")
+    parser.add_argument("--gpu", type=str, default="L40S", help="Target Modal GPU architecture")
+    parser.add_argument("--backend", type=str, default="triton", choices=["triton", "cuda", "tilelang"], help="Kernel compiler backend")
+    parser.add_argument("--precision", type=str, default="fp32", choices=["fp32", "fp16", "bf16"], help="Floating point precision")
+    parser.add_argument("--num-correct-trials", type=int, default=5, help="Correctness verification trials with randomized inputs")
+    parser.add_argument("--num-perf-trials", type=int, default=50, help="Performance profiling trials")
+    parser.add_argument("--use-cached-baseline", action=argparse.BooleanOptionalAction, default=True, help="Use cached baseline timing from results/timing/ instead of remote baseline profiling")
+    parser.add_argument("--lint-only", action="store_true", help="Run local static anti-hacking and Triton AST checks only without cloud execution")
+    parser.add_argument("--quick", action="store_true", help="Quick mode: 1 correctness trial, 0 perf trials, skip baseline timing")
+    parser.add_argument("--json-out", type=str, default=None, help="Optional output path for structured JSON execution receipt")
+    parser.add_argument("--timeout", type=int, default=300, help="Modal container timeout in seconds")
+
+    args = parser.parse_args()
 
     if not os.path.exists(args.kernel):
-        print(f"[ERROR] Kernel file not found: {args.kernel}")
+        print(f"[FAIL] Kernel file not found: {args.kernel}")
         sys.exit(1)
 
     with open(args.kernel, "r") as f:
@@ -191,7 +258,7 @@ def main():
     print(f"Target GPU:  {args.gpu} | Backend: {args.backend} | Precision: {args.precision}")
     print("=" * 70)
 
-    # 1. Static Validation and AST Lint
+    # 1. Static Anti-Hacking and AST Validation
     print("[1/3] Running static security, anti-hacking, and Triton AST validation...")
     from kernelbench.kernel_static_checker import validate_kernel_static
     static_ok, static_errors, static_warnings = validate_kernel_static(
@@ -218,6 +285,9 @@ def main():
                 "static_warnings": all_warnings,
                 "compiled": False,
                 "correctness": False,
+                "kernel_time_ms": -1.0,
+                "ref_eager_time_ms": None,
+                "speedup_vs_eager": -1.0,
                 "runtime_ms": -1.0,
                 "speedup": -1.0,
                 "metadata": {},
@@ -246,6 +316,9 @@ def main():
                 "static_warnings": all_warnings,
                 "compiled": None,
                 "correctness": None,
+                "kernel_time_ms": -1.0,
+                "ref_eager_time_ms": None,
+                "speedup_vs_eager": -1.0,
                 "runtime_ms": -1.0,
                 "speedup": -1.0,
                 "metadata": {},
@@ -270,9 +343,15 @@ def main():
     if args.use_cached_baseline:
         baseline_path = f"results/timing/{args.gpu}_Modal/baseline_time_torch.json"
         if not os.path.exists(baseline_path):
-            # Check common worktree and repo locations if not found in current directory
-            for prefix in [".turn4_worktree", ".turn3_worktree", ".turn2_worktree", ".."]:
-                candidate = os.path.join(prefix, baseline_path)
+            git_root = _find_git_repo_root(os.path.dirname(__file__))
+            candidates = [
+                os.path.join(git_root, baseline_path),
+                os.path.join(git_root, ".turn4_worktree", baseline_path),
+                os.path.join(git_root, ".turn3_worktree", baseline_path),
+                os.path.join(git_root, ".turn2_worktree", baseline_path),
+                os.path.abspath(f"../{baseline_path}"),
+            ]
+            for candidate in candidates:
                 if os.path.exists(candidate):
                     baseline_path = candidate
                     break
@@ -348,9 +427,18 @@ def main():
     print(f"Custom Kernel:     {eval_result.runtime:.2f} ms" if eval_result.runtime > 0 else "Custom Kernel:     N/A")
     print(f"PyTorch Eager:     {ref_eager_time:.2f} ms" if ref_eager_time else "PyTorch Eager:     N/A")
 
-    speedup = (ref_eager_time / eval_result.runtime) if (eval_result.correctness and eval_result.runtime > 0 and ref_eager_time) else 0.0
+    speedup = None
+    if eval_result.correctness and eval_result.runtime > 0 and ref_eager_time:
+        speedup = ref_eager_time / eval_result.runtime
+
     if eval_result.correctness:
-        print(f"Speedup vs Eager:  {speedup:.2f}x")
+        if speedup is not None:
+            print(f"Speedup vs Eager:  {speedup:.2f}x")
+        else:
+            if args.quick:
+                print("Speedup vs Eager:  N/A (quick mode, performance not profiled)")
+            else:
+                print("Speedup vs Eager:  N/A (no baseline timing)")
     else:
         print("Speedup vs Eager:  N/A (correctness failed)")
     print("=" * 70)
@@ -403,9 +491,11 @@ def main():
         "static_passed": True,
         "compiled": eval_result.compiled,
         "correctness": eval_result.correctness,
-        "kernel_time_ms": eval_result.runtime,
+        "kernel_time_ms": eval_result.runtime if eval_result.runtime > 0 else -1.0,
         "ref_eager_time_ms": ref_eager_time,
         "speedup_vs_eager": speedup,
+        "runtime_ms": eval_result.runtime,
+        "speedup": speedup if speedup is not None else -1.0,
         "metadata": _make_serializable(meta),
         "error": error_val,
         "max_difference": meta.get("max_difference"),

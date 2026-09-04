@@ -91,6 +91,46 @@ class ModelNew(nn.Module):
     assert any("Neither tl.tanh nor tl.math.tanh exist" in e for e in errors), f"Failed to catch: {tanh_call}"
 
 
+def test_ast_disallowed_tanh_from_import():
+    code = """
+import triton
+from triton.language import tanh
+import torch.nn as nn
+
+@triton.jit
+def kernel(x_ptr, y_ptr, N):
+    x = tl.load(x_ptr)
+    y = tanh(x)
+    tl.store(y_ptr, y)
+
+class ModelNew(nn.Module):
+    def forward(self, x):
+        return x
+"""
+    errors, _ = lint_kernel_ast(code, backend="triton")
+    assert any("Neither tl.tanh nor tl.math.tanh exist" in e for e in errors)
+
+
+def test_ast_disallowed_tanh_aliased_import():
+    code = """
+import triton
+import triton.language.math as tlm
+import torch.nn as nn
+
+@triton.jit
+def kernel(x_ptr, y_ptr, N):
+    x = tl.load(x_ptr)
+    y = tlm.tanh(x)
+    tl.store(y_ptr, y)
+
+class ModelNew(nn.Module):
+    def forward(self, x):
+        return x
+"""
+    errors, _ = lint_kernel_ast(code, backend="triton")
+    assert any("Neither tl.tanh nor tl.math.tanh exist" in e for e in errors)
+
+
 def test_ast_allowed_sigmoid_tanh_identity():
     code = """
 import triton
@@ -140,6 +180,26 @@ class ModelNew(nn.Module):
     assert any("tl.pow does not exist in triton.language" in e for e in errors), f"Failed to catch: {pow_call}"
 
 
+def test_ast_disallowed_pow_from_import():
+    code = """
+import triton
+from triton.language import pow
+import torch.nn as nn
+
+@triton.jit
+def kernel(x_ptr, y_ptr, N):
+    x = tl.load(x_ptr)
+    y = pow(x, 2)
+    tl.store(y_ptr, y)
+
+class ModelNew(nn.Module):
+    def forward(self, x):
+        return x
+"""
+    errors, _ = lint_kernel_ast(code, backend="triton")
+    assert any("tl.pow does not exist in triton.language" in e for e in errors)
+
+
 # ============================================================================
 # 4. AST Linting: Nested Functions inside @triton.jit
 # ============================================================================
@@ -162,6 +222,27 @@ class ModelNew(nn.Module):
 """
     errors, _ = lint_kernel_ast(code, backend="triton")
     assert any("Nested function 'helper' inside @triton.jit" in e for e in errors)
+
+
+def test_ast_nested_jit_function_in_block():
+    code = """
+import triton
+import triton.language as tl
+import torch.nn as nn
+
+@triton.jit
+def outer_kernel(x_ptr):
+    if True:
+        def block_helper(v):
+            return v + 2.0
+        val = block_helper(tl.load(x_ptr))
+
+class ModelNew(nn.Module):
+    def forward(self, x):
+        return x
+"""
+    errors, _ = lint_kernel_ast(code, backend="triton")
+    assert any("Nested function 'block_helper' inside @triton.jit" in e for e in errors)
 
 
 # ============================================================================
@@ -256,6 +337,25 @@ class ModelNew(nn.Module):
     assert any("Direct host invocation of @triton.jit function 'my_triton_kernel'" in e for e in errors)
 
 
+def test_ast_host_jit_invocation_qualified():
+    code = """
+import triton
+import triton.language as tl
+import torch.nn as nn
+
+@triton.jit
+def my_triton_kernel(x_ptr, y_ptr):
+    pass
+
+class ModelNew(nn.Module):
+    def forward(self, x):
+        self.my_triton_kernel(x.data_ptr(), x.data_ptr())
+        return x
+"""
+    errors, _ = lint_kernel_ast(code, backend="triton")
+    assert any("Direct host invocation of @triton.jit function 'my_triton_kernel'" in e for e in errors)
+
+
 def test_ast_proper_grid_launch():
     code = """
 import triton
@@ -277,7 +377,7 @@ class ModelNew(nn.Module):
 
 
 # ============================================================================
-# 8. AST Linting: Duplicate Launch Arguments
+# 8. AST Linting: Duplicate & Invalid Launch Arguments
 # ============================================================================
 
 def test_ast_duplicate_keyword_args():
@@ -296,8 +396,6 @@ class ModelNew(nn.Module):
         my_kernel[grid](x, BLOCK=64, BLOCK=128)
         return x
 """
-    # ast.parse itself raises SyntaxError in Python 3.10+ for duplicate keywords,
-    # or the linter catches it if parsed
     try:
         errors, _ = lint_kernel_ast(code, backend="triton")
         assert any("Duplicate keyword arguments" in e for e in errors)
@@ -325,6 +423,46 @@ class ModelNew(nn.Module):
     assert any("Duplicate argument 'x_ptr' passed both positionally and as keyword" in e for e in errors)
 
 
+def test_ast_duplicate_args_qualified_launch():
+    code = """
+import triton
+import triton.language as tl
+import torch.nn as nn
+
+@triton.jit
+def my_kernel(x_ptr, y_ptr, N):
+    pass
+
+class ModelNew(nn.Module):
+    def forward(self, x):
+        grid = (1,)
+        self.my_kernel[grid](x.data_ptr(), x.data_ptr(), 1024, x_ptr=x.data_ptr())
+        return x
+"""
+    errors, _ = lint_kernel_ast(code, backend="triton")
+    assert any("Duplicate argument 'x_ptr' passed both positionally and as keyword" in e for e in errors)
+
+
+def test_ast_too_many_positional_args():
+    code = """
+import triton
+import triton.language as tl
+import torch.nn as nn
+
+@triton.jit
+def my_kernel(x_ptr, y_ptr):
+    pass
+
+class ModelNew(nn.Module):
+    def forward(self, x):
+        grid = (1,)
+        my_kernel[grid](x.data_ptr(), x.data_ptr(), 1024, 2048)
+        return x
+"""
+    errors, _ = lint_kernel_ast(code, backend="triton")
+    assert any("Too many positional arguments (4) passed to kernel 'my_kernel'" in e for e in errors)
+
+
 # ============================================================================
 # 9. Baseline Timing Entry Resolution
 # ============================================================================
@@ -339,13 +477,24 @@ class DummyProblem:
 def test_find_baseline_entry_by_name():
     baseline_data = {
         "level2": {
-            "29_Gemm_Scale_Tanh.py": {"mean": 3.97, "std": 0.05},
+            "29_Matmul_Mish_Mish.py": {"mean": 3.56, "std": 0.05},
             "40_Matmul_Scaling_ResidualAdd.py": {"mean": 17.30, "std": 0.12},
         }
     }
-    prob = DummyProblem(name="29_Gemm_Scale_Tanh.py", path="level2/29_Gemm_Scale_Tanh.py", problem_id=29)
+    prob = DummyProblem(name="29_Matmul_Mish_Mish.py", path="level2/29_Matmul_Mish_Mish.py", problem_id=29)
     val = _find_baseline_entry(baseline_data, level=2, problem=prob)
-    assert val == 3.97
+    assert val == 3.56
+
+
+def test_find_baseline_entry_without_extension():
+    baseline_data = {
+        "level2": {
+            "29_Matmul_Mish_Mish.py": {"mean": 3.56},
+        }
+    }
+    prob = DummyProblem(name="29_Matmul_Mish_Mish", path="level2/29_Matmul_Mish_Mish", problem_id=29)
+    val = _find_baseline_entry(baseline_data, level=2, problem=prob)
+    assert val == 3.56
 
 
 def test_find_baseline_entry_by_problem_id():
@@ -392,20 +541,67 @@ def test_doctor_diagnostics():
 
 
 # ============================================================================
-# 11. Real Kernel AST Check (Problem 29 & 40)
+# 11. Real Kernel AST Check (Problem 29, 40, 87, etc.)
 # ============================================================================
 
 def test_real_kernels_ast_clean():
-    # Check verified solutions from worktree or local solutions directory if available
-    repo_top = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
+    from verify_kernel import _find_git_repo_root
+    git_root = _find_git_repo_root(os.path.dirname(__file__))
     candidates = [
-        os.path.join(repo_top, ".turn4_worktree/solutions/level2/29_Gemm_Scale_Tanh.py"),
-        os.path.join(repo_top, ".turn4_worktree/solutions/level2/40_Matmul_Scaling_ResidualAdd.py"),
-        os.path.join(repo_top, ".turn3_worktree/solutions/level2/29_Gemm_Scale_Tanh.py"),
+        os.path.join(git_root, ".turn4_worktree/solutions/level2/29_Matmul_Mish_Mish.py"),
+        os.path.join(git_root, ".turn4_worktree/solutions/level2/40_Matmul_Scaling_ResidualAdd.py"),
+        os.path.join(git_root, ".turn4_worktree/solutions/level2/87_Conv2d_Subtract_Subtract_Mish.py"),
+        os.path.join(git_root, ".turn4_worktree/solutions/level2/26_ConvTranspose3d_Add_HardSwish.py"),
+        os.path.join(git_root, ".turn4_worktree/solutions/level2/34_ConvTranspose3d_LayerNorm_GELU_Scaling.py"),
+        os.path.abspath("solutions/level2/29_Matmul_Mish_Mish.py"),
+        os.path.abspath("solutions/level2/40_Matmul_Scaling_ResidualAdd.py"),
+        os.path.abspath("solutions/level2/87_Conv2d_Subtract_Subtract_Mish.py"),
     ]
+    tested = 0
+    seen = set()
     for path in candidates:
-        if os.path.exists(path):
+        real_path = os.path.realpath(path)
+        if os.path.exists(path) and real_path not in seen:
+            seen.add(real_path)
             with open(path, "r") as f:
                 src = f.read()
             errors, warnings = lint_kernel_ast(src, backend="triton")
             assert len(errors) == 0, f"Errors in {path}: {errors}"
+            tested += 1
+    assert tested >= 3, f"Expected to verify at least 3 distinct real kernel files, verified {tested}"
+
+
+# ============================================================================
+# 12. JSON Evidence Schema Consistency
+# ============================================================================
+
+def test_json_evidence_schema_contract(tmp_path):
+    import subprocess
+    import json
+
+    script_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../scripts/verify_kernel.py"))
+    out_json = str(tmp_path / "evidence.json")
+
+    kernel_path = os.path.abspath(".turn4_worktree/solutions/level2/40_Matmul_Scaling_ResidualAdd.py")
+    if not os.path.exists(kernel_path):
+        kernel_path = os.path.abspath("solutions/level2/40_Matmul_Scaling_ResidualAdd.py")
+
+    res = subprocess.run([
+        sys.executable,
+        script_path,
+        "--lint-only",
+        "--level", "2",
+        "--problem-id", "40",
+        "--kernel", kernel_path,
+        "--json-out", out_json,
+    ], capture_output=True, text=True)
+
+    assert res.returncode == 0, f"Lint-only failed: {res.stderr}\n{res.stdout}"
+    assert os.path.exists(out_json)
+
+    with open(out_json, "r") as f:
+        data = json.load(f)
+
+    required_keys = ["kernel_time_ms", "ref_eager_time_ms", "speedup_vs_eager", "static_passed", "compiled", "correctness"]
+    for k in required_keys:
+        assert k in data, f"Required evidence schema key '{k}' missing from JSON: {data}"

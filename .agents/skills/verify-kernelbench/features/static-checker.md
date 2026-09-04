@@ -9,11 +9,11 @@ The static checker scans candidate kernel source code using regex patterns and A
 - `check-pytorch-layers` blocks unauthorized use of `torch.nn` compute layers.
 - `check-stream-divergence` detects non-default CUDA streams used to evade timing synchronization.
 - `check-ast-model-new` verifies class `ModelNew` is explicitly defined.
-- `check-ast-tanh` catches nonexistent `tl.tanh` or `triton.language.tanh` attribute calls.
-- `check-ast-math-tanh` catches nonexistent `tl.math.tanh` or `triton.language.math.tanh` attribute calls.
-- `check-ast-pow` catches nonexistent `tl.pow` or `triton.language.pow` attribute calls.
-- `check-ast-duplicate-args` catches parameters passed both positionally and as keyword arguments to kernel launches.
-- `check-ast-nested-jit` catches nested functions defined inside functions decorated with `@triton.jit`.
+- `check-ast-tanh` catches nonexistent `tl.tanh`, `tl.math.tanh`, aliased module access (`tlm.tanh`), and direct imports (`from triton.language import tanh`).
+- `check-ast-pow` catches nonexistent `tl.pow`, aliased access, and direct imports (`from triton.language import pow`).
+- `check-ast-duplicate-args` catches duplicate keyword arguments and parameters passed both positionally and by keyword (including qualified launches like `self.kernel[grid]`).
+- `check-ast-launch-arg-count` catches passing more positional arguments than the kernel defines in its signature.
+- `check-ast-nested-jit` catches nested functions anywhere inside `@triton.jit` kernels, including inside `if` or loop blocks.
 - `check-ast-host-jit-call` catches direct host invocations of `@triton.jit` functions without launch grids `[grid](...)`.
 - `check-ast-control-flow` flags unsupported `continue` or `break` statements inside `@triton.jit` / `@triton.autotune` functions.
 - `check-ast-unclamped-exp` warns when `tl.exp` arguments are not protected with `clamp` or `minimum`.

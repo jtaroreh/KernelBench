@@ -119,8 +119,8 @@ uv run python scripts/benchmark_eval_analysis.py \
 
 ## Triton Implementation Cheatsheet & Pitfall Guard
 
-- **Tanh**: Neither `tl.tanh` nor `tl.math.tanh` exist in Modal's Triton runtime. Always compute tanh via the numerically stable sigmoid identity: `2.0 * tl.sigmoid(2.0 * x) - 1.0`.
-- **Power Operator**: `tl.pow` does not exist in `triton.language`. Use `x * x` or Python `**` operator instead.
+- **Tanh**: Neither `tl.tanh` nor `tl.math.tanh` exist in Modal's Triton runtime. Importing `tanh` from `triton.language` or calling it via module aliases (e.g. `tlm.tanh`) is prohibited. Always compute tanh via the numerically stable sigmoid identity: `2.0 * tl.sigmoid(2.0 * x) - 1.0`.
+- **Power Operator**: `tl.pow` does not exist in `triton.language` (including direct imports from `triton.language`). Use `x * x` or Python `**` operator instead.
 - **Mish & GELU**: Exponentials overflow easily in float32. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
 - **GELU Precision & erf Approximation**: Standard Triton tanh-based GELU has residual numerical drift (~4.7e-4) against PyTorch's default exact `gelu()`. Switching to Abramowitz and Stegun Formula 7.1.26 rational Chebyshev polynomial approximation for erf bounds maximum error below 2.5e-7, yielding bit-exact compliance on Modal L40S.
 - **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
@@ -128,7 +128,8 @@ uv run python scripts/benchmark_eval_analysis.py \
 - **Loop Unrolling & PTX Bloat**: Large nested loops or monolithic reductions inside Triton kernels (e.g. multi-channel GroupNorm reductions) cause the Triton compiler to hang generating unrolled PTX. Keep heavy normalizations in native PyTorch/cuDNN and fuse adjacent elementwise epilogues (scale, bias, activation, clamp) into single-pass Triton kernels.
 - **Reduction Accumulator Poisoning**: For `tl.max`, initialize accumulators with `-float('inf')`. For `tl.min`, initialize accumulators with `float('inf')`. Initializing with opposite signs or zeros poisons the reduction and produces NaNs or incorrect outputs.
 - **Hardware Shared Memory (L40S)**: Maximum shared memory per thread block on NVIDIA L40S is 100 KB (101,376 bytes). Keep block sizes (`BLOCK_M`, `BLOCK_N`) $\le 64$ and `num_stages \le 2` for large tiles to prevent out-of-resource crashes.
-- **Kernel Launches**: Never pass launch parameters both positionally and by keyword, and never invoke `@triton.jit` functions directly from host Python without grid syntax `[grid](...)`.
+- **Kernel Launches & Argument Bounds**: Never pass launch parameters both positionally and by keyword, never pass more positional arguments than the kernel defines, and never invoke `@triton.jit` functions directly from host Python without grid syntax `[grid](...)`.
+- **Nested Functions**: Functions defined inside `@triton.jit` kernels (including inside `if` or loop blocks) cannot be compiled by Triton. Hoist helper functions to module level decorated with `@triton.jit`.
 - **Modal App Recovery**: Modal apps intermittently queue indefinitely when workers transition capacity. Stopping orphaned ephemeral apps with `modal app stop -y <app_id>` releases local processes and allows rapid rescheduling.
 - **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
 
@@ -136,11 +137,12 @@ uv run python scripts/benchmark_eval_analysis.py \
 
 A valid proof must capture the following:
 1. **Static Validation**: Output of `validate_kernel_static` and `lint_kernel_ast` showing zero errors.
-2. **Execution Results**: JSON output from `verify_kernel.py` containing:
+2. **Execution Results**: JSON output from `verify_kernel.py` containing a consistent schema across all modes (lint-only, quick, and full verification):
    - `compiled: true`
    - `correctness: true` across 5 randomized trials
-   - `kernel_time_ms`: positive floating point runtime
-   - `speedup_vs_eager`: speedup ratio greater than 1.0x for performance claims
+   - `kernel_time_ms`: positive floating point runtime (or -1.0 if unmeasured)
+   - `ref_eager_time_ms`: floating point eager baseline time (or null if unmeasured)
+   - `speedup_vs_eager`: speedup ratio greater than 1.0x for performance claims (or null in quick mode)
 3. **Log Artifacts**: Store verification evidence in `runs/<unique_agent_id>/` or pass `--json-out /tmp/verify_<agent_id>_<problem_id>.json`.
 
 ## Cleanup

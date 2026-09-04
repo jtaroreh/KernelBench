@@ -30,17 +30,43 @@ def check_dependencies():
         return True, "All required modules import cleanly"
     return False, f"Missing packages: {missing}"
 
+import shutil
+
 def check_modal_auth():
     try:
-        res = subprocess.run(["modal", "profile", "current"], capture_output=True, text=True, timeout=10)
+        modal_cmd = shutil.which("modal")
+        cmd = [modal_cmd, "profile", "current"] if modal_cmd else [sys.executable, "-m", "modal", "profile", "current"]
+        res = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
         if res.returncode == 0 and res.stdout.strip():
             return True, f"Active profile: {res.stdout.strip()}"
         return False, f"Modal not authenticated: {res.stderr.strip()}"
     except Exception as e:
         return False, f"Modal CLI check failed: {e}"
 
+def _find_git_repo_root(start_dir: str) -> str:
+    curr = os.path.abspath(start_dir)
+    while curr and curr != os.path.dirname(curr):
+        git_dir = os.path.join(curr, ".git")
+        if os.path.exists(git_dir):
+            if os.path.isfile(git_dir):
+                try:
+                    with open(git_dir, "r") as f:
+                        line = f.read().strip()
+                    if line.startswith("gitdir:"):
+                        git_path = line.split("gitdir:", 1)[1].strip()
+                        if not os.path.isabs(git_path):
+                            git_path = os.path.abspath(os.path.join(curr, git_path))
+                        if ".git" in git_path:
+                            main_git = git_path[:git_path.index(".git") + 4]
+                            return os.path.dirname(main_git)
+                except Exception:
+                    pass
+            return curr
+        curr = os.path.dirname(curr)
+    return os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
+
 def check_datasets():
-    repo_top = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
+    repo_top = _find_git_repo_root(os.path.dirname(__file__))
     kb_dir = os.path.join(repo_top, "KernelBench")
     l1 = len([f for f in os.listdir(os.path.join(kb_dir, "level1")) if f.endswith(".py")]) if os.path.exists(os.path.join(kb_dir, "level1")) else 0
     l2 = len([f for f in os.listdir(os.path.join(kb_dir, "level2")) if f.endswith(".py")]) if os.path.exists(os.path.join(kb_dir, "level2")) else 0
@@ -74,18 +100,19 @@ def check_helpers():
     return True, f"All helper scripts present and executable ({', '.join(required)})"
 
 def check_baseline_cache():
-    repo_top = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
-    baseline_path = os.path.join(repo_top, "results/timing/L40S_Modal/baseline_time_torch.json")
-    if not os.path.exists(baseline_path):
-        for alt in [".turn4_worktree", ".turn3_worktree", ".turn2_worktree"]:
-            c = os.path.join(repo_top, alt, "results/timing/L40S_Modal/baseline_time_torch.json")
-            if os.path.exists(c):
-                baseline_path = c
-                break
-    if os.path.exists(baseline_path):
-        size_kb = os.path.getsize(baseline_path) / 1024
-        rel = os.path.relpath(baseline_path, repo_top)
-        return True, f"Found L40S baseline ({size_kb:.1f} KB) at {rel}"
+    repo_top = _find_git_repo_root(os.path.dirname(__file__))
+    candidates = [
+        os.path.join(repo_top, "results/timing/L40S_Modal/baseline_time_torch.json"),
+        os.path.join(repo_top, ".turn4_worktree/results/timing/L40S_Modal/baseline_time_torch.json"),
+        os.path.join(repo_top, ".turn3_worktree/results/timing/L40S_Modal/baseline_time_torch.json"),
+        os.path.join(repo_top, ".turn2_worktree/results/timing/L40S_Modal/baseline_time_torch.json"),
+        os.path.abspath("results/timing/L40S_Modal/baseline_time_torch.json"),
+    ]
+    for c in candidates:
+        if os.path.exists(c):
+            size_kb = os.path.getsize(c) / 1024
+            rel = os.path.relpath(c, repo_top)
+            return True, f"Found L40S baseline ({size_kb:.1f} KB) at {rel}"
     return False, "L40S Modal baseline timing file not found"
 
 def main():
