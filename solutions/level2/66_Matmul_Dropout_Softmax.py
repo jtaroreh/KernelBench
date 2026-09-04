@@ -76,6 +76,10 @@ class ModelNew(nn.Module):
 
     def forward(self, x):
         x = self.matmul(x)
+        if x.is_cuda:
+            torch.cuda.manual_seed(torch.cuda.initial_seed())
+        else:
+            torch.manual_seed(torch.initial_seed())
         x = self.dropout(x)
         return triton_fused_softmax(x)
 

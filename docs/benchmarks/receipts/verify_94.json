@@ -1,0 +1,24 @@
+{
+  "level": 2,
+  "problem_id": 94,
+  "problem_name": "94_Gemm_BiasAdd_Hardtanh_Mish_GroupNorm.py",
+  "kernel_path": "solutions/level2/94_Gemm_BiasAdd_Hardtanh_Mish_GroupNorm.py",
+  "gpu": "L40S",
+  "backend": "triton",
+  "static_passed": true,
+  "compiled": true,
+  "correctness": true,
+  "kernel_time_ms": -1.0,
+  "ref_eager_time_ms": 3.75,
+  "speedup_vs_eager": null,
+  "runtime_ms": -1.0,
+  "speedup": -1.0,
+  "metadata": {
+    "hardware": "NVIDIA L40S",
+    "device": "cuda:0",
+    "correctness_trials": "(1 / 1)"
+  },
+  "error": null,
+  "max_difference": null,
+  "avg_difference": null
+}

@@ -1,0 +1,24 @@
+{
+  "level": 2,
+  "problem_id": 25,
+  "problem_name": "25_Conv2d_Min_Tanh_Tanh.py",
+  "kernel_path": "solutions/level2/25_Conv2d_Min_Tanh_Tanh.py",
+  "gpu": "L40S",
+  "backend": "triton",
+  "static_passed": true,
+  "compiled": true,
+  "correctness": true,
+  "kernel_time_ms": 15.5,
+  "ref_eager_time_ms": 15.7,
+  "speedup_vs_eager": 1.0129032258064516,
+  "runtime_ms": 15.5,
+  "speedup": 1.0129032258064516,
+  "metadata": {
+    "hardware": "NVIDIA L40S",
+    "device": "cuda:0",
+    "correctness_trials": "(5 / 5)"
+  },
+  "error": null,
+  "max_difference": null,
+  "avg_difference": null
+}
