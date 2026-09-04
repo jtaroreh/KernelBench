@@ -99,6 +99,12 @@ uv run python scripts/eval_from_generations.py \
     timeout=180
 ```
 
+> [!WARNING]
+> **Batch Evaluation Safety & Concurrency**:
+> - Never execute batch evaluation on unvalidated or newly generated repairs. Untriaged kernels with runtime errors or compilation crashes can hang workers and trigger `Future was None - evaluation did not complete`.
+> - Always pre-screen candidate kernels using the **Diagnostic Triage Workflow** (`--lint-only` then `--quick`) before batch execution.
+> - Batch runs do not automatically compute speedup ratios against cached eager baselines. To verify speedups for newly passing solutions, verify them with `verify_kernel.py --use-cached-baseline` or run `scripts/benchmark_eval_analysis.py`.
+
 ### 5. Benchmark Scoring and Analysis
 Aggregate results and compute `fast_p` and geometric mean speedup against baseline timings:
 ```bash
@@ -113,9 +119,17 @@ uv run python scripts/benchmark_eval_analysis.py \
 
 ## Triton Implementation Cheatsheet & Pitfall Guard
 
-- **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or custom rational approximation `(tl.exp(2*x)-1)/(tl.exp(2*x)+1)`.
+- **Tanh**: Neither `tl.tanh` nor `tl.math.tanh` exist in Modal's Triton runtime. Always compute tanh via the numerically stable sigmoid identity: `2.0 * tl.sigmoid(2.0 * x) - 1.0`.
+- **Power Operator**: `tl.pow` does not exist in `triton.language`. Use `x * x` or Python `**` operator instead.
 - **Mish & GELU**: Exponentials overflow easily in float32. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+- **GELU Precision & erf Approximation**: Standard Triton tanh-based GELU has residual numerical drift (~4.7e-4) against PyTorch's default exact `gelu()`. Switching to Abramowitz and Stegun Formula 7.1.26 rational Chebyshev polynomial approximation for erf bounds maximum error below 2.5e-7, yielding bit-exact compliance on Modal L40S.
 - **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+- **Loop-Carried Variables**: In `tl.range` loops, accumulators must maintain identical type and shape across iterations. Initialize tensor accumulators with `tl.zeros([BLOCK_SIZE], dtype=tl.float32)`, not scalar `0.0`.
+- **Loop Unrolling & PTX Bloat**: Large nested loops or monolithic reductions inside Triton kernels (e.g. multi-channel GroupNorm reductions) cause the Triton compiler to hang generating unrolled PTX. Keep heavy normalizations in native PyTorch/cuDNN and fuse adjacent elementwise epilogues (scale, bias, activation, clamp) into single-pass Triton kernels.
+- **Reduction Accumulator Poisoning**: For `tl.max`, initialize accumulators with `-float('inf')`. For `tl.min`, initialize accumulators with `float('inf')`. Initializing with opposite signs or zeros poisons the reduction and produces NaNs or incorrect outputs.
+- **Hardware Shared Memory (L40S)**: Maximum shared memory per thread block on NVIDIA L40S is 100 KB (101,376 bytes). Keep block sizes (`BLOCK_M`, `BLOCK_N`) $\le 64$ and `num_stages \le 2` for large tiles to prevent out-of-resource crashes.
+- **Kernel Launches**: Never pass launch parameters both positionally and by keyword, and never invoke `@triton.jit` functions directly from host Python without grid syntax `[grid](...)`.
+- **Modal App Recovery**: Modal apps intermittently queue indefinitely when workers transition capacity. Stopping orphaned ephemeral apps with `modal app stop -y <app_id>` releases local processes and allows rapid rescheduling.
 - **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
 
 ## Evidence
@@ -141,6 +155,7 @@ A valid proof must capture the following:
 
 ## Helpers
 
-The skill ships with two executable scripts:
+The skill ships with executable scripts and a unit test suite:
 - `.agents/skills/verify-kernelbench/scripts/doctor.py`: Environment diagnostic tool.
 - `.agents/skills/verify-kernelbench/scripts/verify_kernel.py`: Automated end-to-end kernel validator with static checking, AST linting, cloud compilation, correctness checks, and speedup profiling.
+- `.agents/skills/verify-kernelbench/tests/test_verify_kernel.py`: Offline unit test suite covering AST linter rules, baseline resolution, and environment doctor checks. Run via `uv run pytest .agents/skills/verify-kernelbench/tests/test_verify_kernel.py -v`.

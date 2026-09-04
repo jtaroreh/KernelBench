@@ -56,6 +56,38 @@ def check_static_checker():
         return True, "Static checker active and correctly flags bypass pattern"
     return False, f"Static checker unexpected response: valid={valid}, errors={errors}"
 
+def check_helpers():
+    scripts_dir = os.path.dirname(os.path.abspath(__file__))
+    required = ["doctor.py", "verify_kernel.py"]
+    missing = []
+    not_executable = []
+    for s in required:
+        p = os.path.join(scripts_dir, s)
+        if not os.path.exists(p):
+            missing.append(s)
+        elif not os.access(p, os.X_OK):
+            not_executable.append(s)
+    if missing:
+        return False, f"Missing helper scripts: {missing}"
+    if not_executable:
+        return False, f"Helper scripts missing executable permissions: {not_executable}"
+    return True, f"All helper scripts present and executable ({', '.join(required)})"
+
+def check_baseline_cache():
+    repo_top = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../.."))
+    baseline_path = os.path.join(repo_top, "results/timing/L40S_Modal/baseline_time_torch.json")
+    if not os.path.exists(baseline_path):
+        for alt in [".turn4_worktree", ".turn3_worktree", ".turn2_worktree"]:
+            c = os.path.join(repo_top, alt, "results/timing/L40S_Modal/baseline_time_torch.json")
+            if os.path.exists(c):
+                baseline_path = c
+                break
+    if os.path.exists(baseline_path):
+        size_kb = os.path.getsize(baseline_path) / 1024
+        rel = os.path.relpath(baseline_path, repo_top)
+        return True, f"Found L40S baseline ({size_kb:.1f} KB) at {rel}"
+    return False, "L40S Modal baseline timing file not found"
+
 def main():
     print("=" * 60)
     print("KernelBench Environment Doctor")
@@ -66,6 +98,8 @@ def main():
         ("Modal Authentication", check_modal_auth),
         ("Dataset Presence", check_datasets),
         ("Static Checker", check_static_checker),
+        ("Helper Scripts", check_helpers),
+        ("Baseline Timing Cache", check_baseline_cache),
     ]
     all_passed = True
     for name, fn in checks:

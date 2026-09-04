@@ -25,3 +25,4 @@ Preconditions:
 
 - Any problem missing from `eval_results.json` is automatically treated as `compiled=False, correctness=False` by `patch()`.
 - Baseline file must have problem filenames matching dataset names.
+- When evaluating within subagent worktrees (e.g. `.turn4_worktree`), explicitly reference the cached baseline path across parent directories or candidate prefixes if not found locally.

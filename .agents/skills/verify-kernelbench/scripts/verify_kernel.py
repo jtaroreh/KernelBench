@@ -44,24 +44,38 @@ def lint_kernel_ast(kernel_src: str, backend: str = "triton") -> tuple[list[str]
         errors.append("ModelNew class definition not found")
 
     if backend == "triton":
+        jit_funcs = {}
         for node in ast.walk(tree):
-            if isinstance(node, ast.Attribute):
-                attr_name = _get_attr_name(node)
-                if attr_name in ("tl.tanh", "triton.language.tanh"):
-                    err = "tl.tanh does not exist in Triton; use tl.math.tanh or custom rational approximation (tl.exp(2*x)-1)/(tl.exp(2*x)+1)"
-                    if err not in errors:
-                        errors.append(err)
-
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                is_triton = False
                 for dec in node.decorator_list:
                     target = dec.func if isinstance(dec, ast.Call) else dec
                     dec_name = _get_attr_name(target)
                     if dec_name in ("triton.jit", "triton.autotune", "jit", "autotune", "tl.jit"):
-                        is_triton = True
+                        params = [arg.arg for arg in node.args.args]
+                        jit_funcs[node.name] = params
                         break
 
+        for node in ast.walk(tree):
+            if isinstance(node, ast.Attribute):
+                attr_name = _get_attr_name(node)
+                if attr_name in ("tl.tanh", "triton.language.tanh", "tl.math.tanh", "triton.language.math.tanh"):
+                    err = "Neither tl.tanh nor tl.math.tanh exist in Modal's Triton runtime; compute tanh via the sigmoid identity: 2.0 * tl.sigmoid(2.0 * x) - 1.0"
+                    if err not in errors:
+                        errors.append(err)
+                elif attr_name in ("tl.pow", "triton.language.pow"):
+                    err = "tl.pow does not exist in triton.language; compute powers via x * x or Python ** operator"
+                    if err not in errors:
+                        errors.append(err)
+
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                is_triton = node.name in jit_funcs
                 if is_triton:
+                    for child in node.body:
+                        if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                            err = f"Nested function '{child.name}' inside @triton.jit kernel '{node.name}' is unsupported. Hoist helper functions to module level decorated with @triton.jit."
+                            if err not in errors:
+                                errors.append(err)
+
                     for subnode in ast.walk(node):
                         if isinstance(subnode, (ast.Continue, ast.Break)):
                             err = "continue/break statements are unsupported in @triton.jit kernels; use conditional masks or tl.where instead"
@@ -79,6 +93,31 @@ def lint_kernel_ast(kernel_src: str, backend: str = "triton") -> tuple[list[str]
                                     warn = "Unclamped tl.exp() detected; risk of NaN/Inf overflow. Consider tl.clamp(x, -88.0, 88.0)"
                                     if warn not in warnings:
                                         warnings.append(warn)
+                else:
+                    for subnode in ast.walk(node):
+                        if isinstance(subnode, ast.Call):
+                            if isinstance(subnode.func, ast.Name) and subnode.func.id in jit_funcs:
+                                err = f"Direct host invocation of @triton.jit function '{subnode.func.id}' without launch grid '[grid](...)'; causes 'RuntimeError: Cannot call @triton.jit\'d outside of the scope of a kernel'"
+                                if err not in errors:
+                                    errors.append(err)
+
+            if isinstance(node, ast.Call):
+                if isinstance(node.func, ast.Subscript):
+                    kernel_name = _get_attr_name(node.func.value)
+                    kw_names = [kw.arg for kw in node.keywords if kw.arg is not None]
+                    if len(kw_names) != len(set(kw_names)):
+                        err = f"Duplicate keyword arguments detected in launch for kernel '{kernel_name}': {kw_names}"
+                        if err not in errors:
+                            errors.append(err)
+                    if kernel_name in jit_funcs:
+                        params = jit_funcs[kernel_name]
+                        num_pos = len(node.args)
+                        pos_params = params[:num_pos]
+                        for kw in kw_names:
+                            if kw in pos_params:
+                                err = f"Duplicate argument '{kw}' passed both positionally and as keyword to kernel '{kernel_name}'; causes TypeError in launch binder"
+                                if err not in errors:
+                                    errors.append(err)
 
     return errors, warnings
 
@@ -230,6 +269,13 @@ def main():
     ref_eager_time = None
     if args.use_cached_baseline:
         baseline_path = f"results/timing/{args.gpu}_Modal/baseline_time_torch.json"
+        if not os.path.exists(baseline_path):
+            # Check common worktree and repo locations if not found in current directory
+            for prefix in [".turn4_worktree", ".turn3_worktree", ".turn2_worktree", ".."]:
+                candidate = os.path.join(prefix, baseline_path)
+                if os.path.exists(candidate):
+                    baseline_path = candidate
+                    break
         if os.path.exists(baseline_path):
             try:
                 with open(baseline_path, "r") as f:

@@ -17,6 +17,7 @@ This directory is the maintained source for verifying GPU kernels and benchmark 
 - Specify exact backend (`triton`, `cuda`, `tilelang`, `cute`) matching the kernel implementation.
 - Capture structured JSON output via `--json-out <path>` for machine verification.
 - Never write output files to shared directories without agent-specific prefixes.
+- Run offline unit test suite via `uv run pytest .agents/skills/verify-kernelbench/tests/test_verify_kernel.py -v` before modifying verification scripts or AST linter rules.
 
 ## Proof and skip reporting
 
