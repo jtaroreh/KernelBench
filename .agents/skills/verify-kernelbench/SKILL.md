@@ -59,13 +59,34 @@ uv run python .agents/skills/verify-kernelbench/scripts/verify_kernel.py \
 ```
 Output reports `Compiled: True`, `Correctness: True`, and `Speedup vs Eager: <N>x`. Exits 0 on pass, 1 on failure.
 
-### 2. Static Anti-Hacking Check
+#### Command-Line Flags
+- `--lint-only`: Run local static and Triton AST checks only without cloud compute.
+- `--quick`: Quick mode: 1 correctness trial, 0 perf trials, skip baseline timing.
+- `--use-cached-baseline`: Use cached eager baseline from `results/timing/` if available (default: enabled).
+- `--no-cached-baseline`: Force remote baseline timing on Modal even if cached baseline exists.
+
+### 2. Diagnostic Triage Workflow
+Follow this 3-tier escalation workflow when implementing and verifying kernels:
+1. **Local AST & Static Lint (`--lint-only`)**: Fast zero-cost local check validating syntax, anti-hacking rules, `ModelNew` class existence, unsupported Triton syntax (`tl.tanh`, `continue`/`break`), and unclamped `tl.exp()`.
+   ```bash
+   uv run python .agents/skills/verify-kernelbench/scripts/verify_kernel.py --lint-only --level <level> --problem-id <id> --kernel <path>
+   ```
+2. **Quick 1-Trial Functional Test (`--quick`)**: Fast cloud validation executing 1 correctness trial and 0 perf trials, bypassing baseline timing on Modal.
+   ```bash
+   uv run python .agents/skills/verify-kernelbench/scripts/verify_kernel.py --quick --level <level> --problem-id <id> --kernel <path>
+   ```
+3. **Full Verification (`--num-correct-trials 5 --num-perf-trials 50`)**: Complete verification verifying correctness over 5 randomized trials and profiling 50 timing iterations against PyTorch eager.
+   ```bash
+   uv run python .agents/skills/verify-kernelbench/scripts/verify_kernel.py --level <level> --problem-id <id> --kernel <path> --num-correct-trials 5 --num-perf-trials 50 --json-out <evidence_json_path>
+   ```
+
+### 3. Static Anti-Hacking Check
 Verify that a kernel contains no prohibited bypass patterns (try-except fallbacks, empty pass statements, non-default CUDA streams, input mutation, or reference caching):
 ```bash
 uv run python -c "from kernelbench.kernel_static_checker import validate_kernel_static; valid, errors, warnings = validate_kernel_static(open(\"<path>\").read(), backend=\"triton\"); print(valid, errors); assert valid"
 ```
 
-### 3. Batch Evaluation
+### 4. Batch Evaluation
 Run batch evaluation across multiple problems on Modal:
 ```bash
 uv run python scripts/eval_from_generations.py \
@@ -78,7 +99,7 @@ uv run python scripts/eval_from_generations.py \
     timeout=180
 ```
 
-### 4. Benchmark Scoring and Analysis
+### 5. Benchmark Scoring and Analysis
 Aggregate results and compute `fast_p` and geometric mean speedup against baseline timings:
 ```bash
 uv run python scripts/benchmark_eval_analysis.py \
@@ -90,10 +111,17 @@ uv run python scripts/benchmark_eval_analysis.py \
     eval_results_dir=runs
 ```
 
+## Triton Implementation Cheatsheet & Pitfall Guard
+
+- **Tanh**: `tl.tanh` does not exist in Triton. Use `tl.math.tanh(x)` or custom rational approximation `(tl.exp(2*x)-1)/(tl.exp(2*x)+1)`.
+- **Mish & GELU**: Exponentials overflow easily in float32. Always clamp inputs to `tl.exp`: use `tl.clamp(x, -88.0, 88.0)`.
+- **Flow Control**: `continue` and `break` statements are unsupported inside `@triton.jit` kernels. Use boolean masks and `tl.where` instead.
+- **Initialization Order**: Match the reference `Model.__init__` attribute creation sequence identically so PyTorch's RNG initialization yields bitwise-identical weights.
+
 ## Evidence
 
 A valid proof must capture the following:
-1. **Static Validation**: Output of `validate_kernel_static` showing zero errors.
+1. **Static Validation**: Output of `validate_kernel_static` and `lint_kernel_ast` showing zero errors.
 2. **Execution Results**: JSON output from `verify_kernel.py` containing:
    - `compiled: true`
    - `correctness: true` across 5 randomized trials
@@ -115,4 +143,4 @@ A valid proof must capture the following:
 
 The skill ships with two executable scripts:
 - `.agents/skills/verify-kernelbench/scripts/doctor.py`: Environment diagnostic tool.
-- `.agents/skills/verify-kernelbench/scripts/verify_kernel.py`: Automated end-to-end kernel validator with static checking, cloud compilation, correctness checks, and speedup profiling.
+- `.agents/skills/verify-kernelbench/scripts/verify_kernel.py`: Automated end-to-end kernel validator with static checking, AST linting, cloud compilation, correctness checks, and speedup profiling.

@@ -1,6 +1,6 @@
 # Static checker
 
-The static checker scans candidate kernel source code using regex patterns to catch banned reward hacking behavior, fallback bypasses, and unallowed PyTorch layer wrapping.
+The static checker scans candidate kernel source code using regex patterns and AST parsing to catch banned reward hacking behavior, fallback bypasses, unallowed PyTorch layer wrapping, and illegal Triton kernel semantics.
 
 ## Sub-features
 
@@ -8,11 +8,16 @@ The static checker scans candidate kernel source code using regex patterns to ca
 - `check-pass-statement` catches empty pass statements in inherited classes.
 - `check-pytorch-layers` blocks unauthorized use of `torch.nn` compute layers.
 - `check-stream-divergence` detects non-default CUDA streams used to evade timing synchronization.
+- `check-ast-model-new` verifies class `ModelNew` is explicitly defined.
+- `check-ast-tanh` catches nonexistent `tl.tanh` or `triton.language.tanh` attribute calls.
+- `check-ast-control-flow` flags unsupported `continue` or `break` statements inside `@triton.jit` / `@triton.autotune` functions.
+- `check-ast-unclamped-exp` warns when `tl.exp` arguments are not protected with `clamp` or `minimum`.
 
 ## How to get to it (user POV)
 
 - Call `from kernelbench.kernel_static_checker import validate_kernel_static`.
-- Run `verify_kernel.py` which executes static validation as step 1.
+- Call `from verify_kernel import lint_kernel_ast`.
+- Run `verify_kernel.py --lint-only` which executes both regex static checks and AST linting locally without cloud execution.
 
 ## Driving it with verify-kernelbench
 
@@ -20,9 +25,12 @@ Preconditions:
 - `kernelbench` package is installed in virtual environment.
 
 - **Run direct python check.** Run `uv run python -c "from kernelbench.kernel_static_checker import validate_kernel_static; ok, errs, warns = validate_kernel_static(open("<path>").read(), backend="triton"); print(ok, errs); assert ok"`. Output is `True []`.
+- **Run AST and static lint.** Run `uv run python .agents/skills/verify-kernelbench/scripts/verify_kernel.py --lint-only --level <level> --problem-id <id> --kernel <path>`. Prints `[PASS] Static and AST checks passed cleanly.` and exits with 0 on clean kernels.
 - **Catch bypass.** Check a file containing `try: ... except: pass`. Validator returns `valid=False` with error naming try-except block.
+- **Catch Triton AST pitfalls.** Run with `--lint-only` against kernels containing `tl.tanh` or `continue`/`break` inside `@triton.jit`. Returns exit code 1 and prints specific error recommendations.
 
 ## Gotchas
 
 - Comments containing keywords can sometimes trigger false matches if not stripped; `validate_kernel_static` strips comments automatically.
 - Different backends (`cuda`, `triton`, `tilelang`) enforce different mandatory decorators or includes.
+- `tl.math.tanh` is valid in Triton AST; only `tl.tanh` and `triton.language.tanh` are flagged as nonexistent.
