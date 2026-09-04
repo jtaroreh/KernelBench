@@ -10,10 +10,10 @@ Specifically we task LLM to generate correct and efficient CUDA / DSL kernels fo
 > This repository contains empirical benchmark evaluation results and verified fused kernels for KernelBench Level 2 across all 100 compound operators.
 > All evaluations ran using Triton on NVIDIA L40S hardware via Modal cloud GPUs.
 >
-> - **Verified solutions.** 45 verified fused Triton operators in [`solutions/level2/`](solutions/level2) with memory coalescing and epilogue fusion.
-> - **Turn 2 evaluation metrics.** 87 of 100 compiled (87%), 41 of 100 correct (41%), 33 of 100 faster than PyTorch eager (`fast_1 = 0.33`), 1.2013x geomean speedup.
-> - **Cumulative verified solutions.** 45 of 100 correct (45.0%) across iterative repair cycles.
-> - **Benchmark artifacts.** Read the full [Level 2 Submission and Evaluation Report](docs/benchmarks/SUBMISSION_REPORT.md). Raw execution data is stored in [`runs/cloud_agents_l2/eval_results.json`](runs/cloud_agents_l2/eval_results.json) (Turn 1 baseline) and [`runs/cloud_agents_l2_turn2/eval_results.json`](runs/cloud_agents_l2_turn2/eval_results.json) (Turn 2 repairs). Hardware baselines are in [`results/timing/L40S_Modal/baseline_time_torch.json`](results/timing/L40S_Modal/baseline_time_torch.json).
+> - **Verified solutions.** 55 verified fused Triton operators in [`solutions/level2/`](solutions/level2) with memory coalescing and epilogue fusion.
+> - **Turn 3 evaluation metrics.** 91 of 100 compiled (91.0%), 55 of 100 correct (55.0%), 44 of 100 faster than eager (`fast_1 = 0.44`), 1.1714x geomean speedup.
+> - **Cumulative verified solutions.** 55 of 100 correct (55.0%) across iterative repair cycles.
+> - **Benchmark artifacts.** Read the full [Level 2 Submission and Evaluation Report](docs/benchmarks/SUBMISSION_REPORT.md). Raw execution data is stored in [`runs/cloud_agents_l2/eval_results.json`](runs/cloud_agents_l2/eval_results.json) (Turn 1 baseline), [`runs/cloud_agents_l2_turn2/eval_results.json`](runs/cloud_agents_l2_turn2/eval_results.json) (Turn 2 repairs), and [`runs/cloud_agents_l2_turn3/eval_results.json`](runs/cloud_agents_l2_turn3/eval_results.json) (Turn 3 targeted repairs). Hardware baselines are in [`results/timing/L40S_Modal/baseline_time_torch.json`](results/timing/L40S_Modal/baseline_time_torch.json).
 
 <img src="./assets/figures/KernelBenchMascot.png" width="200">
 
