@@ -1,0 +1,182 @@
+{
+  "3": {
+    "file": "3_ConvTranspose3d_Sum_LayerNorm_AvgPool_GELU.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "14": {
+    "file": "14_Gemm_Divide_Sum_Scaling.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "33": {
+    "file": "33_Gemm_Scale_BatchNorm.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "36": {
+    "file": "36_ConvTranspose2d_Min_Sum_GELU_Add.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "37": {
+    "file": "37_Matmul_Swish_Sum_GroupNorm.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "46": {
+    "file": "46_Conv2d_Subtract_Tanh_Subtract_AvgPool.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "47": {
+    "file": "47_Conv3d_Mish_Tanh.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "48": {
+    "file": "48_Conv3d_Scaling_Tanh_Multiply_Sigmoid.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "52": {
+    "file": "52_Conv2d_Activation_BatchNorm.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "53": {
+    "file": "53_Gemm_Scaling_Hardtanh_GELU.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "54": {
+    "file": "54_Conv2d_Multiply_LeakyReLU_GELU.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "56": {
+    "file": "56_Matmul_Sigmoid_Sum.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "64": {
+    "file": "64_Gemm_LogSumExp_LeakyReLU_LeakyReLU_GELU_GELU.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "66": {
+    "file": "66_Matmul_Dropout_Softmax.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "67": {
+    "file": "67_Conv2d_GELU_GlobalAvgPool.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "72": {
+    "file": "72_ConvTranspose3d_BatchNorm_AvgPool_AvgPool.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "73": {
+    "file": "73_Conv2d_BatchNorm_Scaling.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "75": {
+    "file": "75_Gemm_GroupNorm_Min_BiasAdd.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "76": {
+    "file": "76_Gemm_Add_ReLU.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "77": {
+    "file": "77_ConvTranspose3d_Scale_BatchNorm_GlobalAvgPool.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "80": {
+    "file": "80_Gemm_Max_Subtract_GELU.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "82": {
+    "file": "82_Conv2d_Tanh_Scaling_BiasAdd_Max.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "84": {
+    "file": "84_Gemm_BatchNorm_Scaling_Softmax.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "86": {
+    "file": "86_Matmul_Divide_GELU.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "91": {
+    "file": "91_ConvTranspose2d_Softmax_BiasAdd_Scaling_Sigmoid.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "92": {
+    "file": "92_Conv2d_GroupNorm_Tanh_HardSwish_ResidualAdd_LogSumExp.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "93": {
+    "file": "93_ConvTranspose2d_Add_Min_GELU_Multiply.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "94": {
+    "file": "94_Gemm_BiasAdd_Hardtanh_Mish_GroupNorm.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "98": {
+    "file": "98_Matmul_AvgPool_GELU_Scale_Max.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  },
+  "99": {
+    "file": "99_Matmul_GELU_Softmax.py",
+    "status": "PASS",
+    "error": null,
+    "exit_code": 0
+  }
+}

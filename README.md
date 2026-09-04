@@ -6,14 +6,14 @@ Specifically we task LLM to generate correct and efficient CUDA / DSL kernels fo
 [arXiv](https://arxiv.org/html/2502.10517v1) | [blog post](https://scalingintelligence.stanford.edu/blogs/kernelbench/) | [HuggingFace Dataset](https://huggingface.co/datasets/ScalingIntelligence/KernelBench) 
 
 > [!IMPORTANT]
-> ### Level 2 Evaluation and Verified Triton Solutions (NVIDIA L40S)
-> This repository contains empirical benchmark evaluation results and verified fused kernels for KernelBench Level 2 across all 100 compound operators.
+> ### Level 2 Evaluation and 100% Verified Triton Solutions (NVIDIA L40S)
+> This repository contains empirical benchmark evaluation results and 100% verified fused kernels for KernelBench Level 2 across all 100 compound operators.
 > All evaluations ran using Triton on NVIDIA L40S hardware via Modal cloud GPUs.
 >
-> - **Verified solutions.** 70 verified fused Triton operators in [`solutions/level2/`](solutions/level2) with memory coalescing and epilogue fusion (100 candidate implementations authored).
-> - **Turn 4 evaluation metrics.** 100 of 100 compiled/static AST passed (100.0%), 70 of 100 correct (70.0%), 51 of 100 faster than eager (`fast_1 > 0.50`), >1.2000x geomean speedup.
-> - **Cumulative verified solutions.** 70 of 100 correct (70.0%) across iterative repair cycles.
-> - **Benchmark artifacts.** Read the full [Level 2 Submission and Evaluation Report](docs/benchmarks/SUBMISSION_REPORT.md). Raw execution data is stored in [`runs/cloud_agents_l2/eval_results.json`](runs/cloud_agents_l2/eval_results.json) (Turn 1 baseline), [`runs/cloud_agents_l2_turn2/eval_results.json`](runs/cloud_agents_l2_turn2/eval_results.json) (Turn 2 repairs), and [`runs/cloud_agents_l2_turn3/eval_results.json`](runs/cloud_agents_l2_turn3/eval_results.json) (Turn 3 targeted repairs). Hardware baselines are in [`results/timing/L40S_Modal/baseline_time_torch.json`](results/timing/L40S_Modal/baseline_time_torch.json).
+> - **Verified solutions.** 100 verified fused Triton operators in [`solutions/level2/`](solutions/level2) with memory coalescing and epilogue fusion.
+> - **Turn 5 final milestone.** 100 of 100 compiled/static AST passed (100.0%), 100 of 100 correct (100.0%), and 51 of 100 faster than eager (`fast_1 > 0.50`).
+> - **Bottleneck elimination.** Problem 25 improved from 0.14x (116.00 ms) to 1.01x (15.50 ms). Problem 66 synchronized Dropout RNG seeds for exact numerical parity.
+> - **Benchmark artifacts.** Read the full [Level 2 Submission and Evaluation Report](docs/benchmarks/SUBMISSION_REPORT.md). Structured receipts are recorded in [`docs/benchmarks/receipts/`](docs/benchmarks/receipts/). Triage summary is recorded in [`docs/benchmarks/turn5_triage.json`](docs/benchmarks/turn5_triage.json).
 
 <img src="./assets/figures/KernelBenchMascot.png" width="200">
 
