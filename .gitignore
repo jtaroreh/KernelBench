@@ -15,3 +15,5 @@ _build_cache/
 uv.lock
 CLAUDE.md
 .agents/skills/modal/
+.DS_Store
+**/.DS_Store
